@@ -45,30 +45,47 @@
             <span class="material-symbols-outlined caret">expand_more</span>
           </button>
           <div id="toolsMenu" class="menu" hidden>
-            <div class="menu-group-label">大文字・小文字</div>
-            <button data-action="upper" class="menu-item">大文字に変換</button>
-            <button data-action="lower" class="menu-item">小文字に変換</button>
-            <button data-action="title" class="menu-item">単語の先頭を大文字に</button>
-            <div class="menu-divider"></div>
-            <div class="menu-group-label">行の操作</div>
-            <button data-action="sortAsc" class="menu-item">行を並び替え(昇順)</button>
-            <button data-action="sortDesc" class="menu-item">行を並び替え(降順)</button>
-            <button data-action="reverseLines" class="menu-item">行を逆順にする</button>
-            <button data-action="dedupe" class="menu-item">重複行を削除</button>
-            <button data-action="removeBlank" class="menu-item">空行を削除</button>
-            <button data-action="trimTrailing" class="menu-item">行末の空白を削除</button>
-            <button data-action="insertLineNumbers" class="menu-item">行番号を挿入</button>
-            <div class="menu-divider"></div>
-            <div class="menu-group-label">タブ・改行</div>
-            <button data-action="tabToSpace" class="menu-item">タブ→スペースに変換</button>
-            <button data-action="spaceToTab" class="menu-item">先頭スペース→タブに変換</button>
-            <button data-action="eolToLF" class="menu-item">改行コードをLFに統一</button>
-            <button data-action="eolToCRLF" class="menu-item">改行コードをCRLFに統一</button>
-            <div class="menu-divider"></div>
-            <div class="menu-group-label">便利機能</div>
-            <button data-action="gotoLine" class="menu-item">行へ移動 (Ctrl+G)</button>
-            <button data-action="insertTimestamp" class="menu-item">現在日時を挿入</button>
-            <button data-action="columnEdit" class="menu-item">列を指定して挿入/削除(簡易矩形編集)</button>
+            <div class="menu-category" data-cat="case">
+              <span class="menu-category-label">文字種変換</span>
+              <span class="material-symbols-outlined menu-category-caret">chevron_right</span>
+              <div class="submenu">
+                <button data-action="upper" class="menu-item">大文字に変換</button>
+                <button data-action="lower" class="menu-item">小文字に変換</button>
+                <button data-action="title" class="menu-item">単語の先頭を大文字に</button>
+              </div>
+            </div>
+            <div class="menu-category" data-cat="lines">
+              <span class="menu-category-label">行の操作</span>
+              <span class="material-symbols-outlined menu-category-caret">chevron_right</span>
+              <div class="submenu">
+                <button data-action="sortAsc" class="menu-item">行を並び替え(昇順)</button>
+                <button data-action="sortDesc" class="menu-item">行を並び替え(降順)</button>
+                <button data-action="reverseLines" class="menu-item">行を逆順にする</button>
+                <button data-action="dedupe" class="menu-item">重複行を削除</button>
+                <button data-action="removeBlank" class="menu-item">空行を削除</button>
+                <button data-action="trimTrailing" class="menu-item">行末の空白を削除</button>
+                <button data-action="insertLineNumbers" class="menu-item">行番号を挿入</button>
+              </div>
+            </div>
+            <div class="menu-category" data-cat="eol">
+              <span class="menu-category-label">タブ・改行</span>
+              <span class="material-symbols-outlined menu-category-caret">chevron_right</span>
+              <div class="submenu">
+                <button data-action="tabToSpace" class="menu-item">タブ→スペースに変換</button>
+                <button data-action="spaceToTab" class="menu-item">先頭スペース→タブに変換</button>
+                <button data-action="eolToLF" class="menu-item">改行コードをLFに統一</button>
+                <button data-action="eolToCRLF" class="menu-item">改行コードをCRLFに統一</button>
+              </div>
+            </div>
+            <div class="menu-category" data-cat="util">
+              <span class="menu-category-label">便利機能</span>
+              <span class="material-symbols-outlined menu-category-caret">chevron_right</span>
+              <div class="submenu">
+                <button data-action="gotoLine" class="menu-item">行へ移動 (Ctrl+G)</button>
+                <button data-action="insertTimestamp" class="menu-item">現在日時を挿入</button>
+                <button data-action="columnEdit" class="menu-item">列を指定して挿入/削除(簡易矩形編集)</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
