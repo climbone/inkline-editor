@@ -1,17 +1,17 @@
 {
   "name": "Inkline エディタ",
   "short_name": "Inkline",
-  "description": "行番号・検索置換・自動保存を備えた、テキストファイル専用の高機能エディタ",
+  "description": "検索置換・行操作・自動保存を備えた、テキストファイル専用の高機能エディタ",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#1e1e1c",
-  "theme_color": "#1e1e1c",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
   "orientation": "any",
   "icons": [
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "icons/icon-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "file_handlers": [
     {
@@ -24,7 +24,7 @@
         "text/x-log": [".log"]
       },
       "icons": [
-        { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }
+        { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }
       ],
       "launch_type": "single-client"
     }
