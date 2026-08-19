@@ -70,33 +70,6 @@ body {
   gap: 6px;
 }
 
-.topbar-center {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-}
-
-.file-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
-  max-width: 40vw;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.dirty-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--danger);
-  display: inline-block;
-}
-
 .tool-btn {
   display: flex;
   align-items: center;
@@ -149,7 +122,7 @@ body {
   box-shadow: 0 8px 24px rgba(0,0,0,0.10);
   padding: 6px;
   min-width: 220px;
-  z-index: 20;
+  z-index: 30;
 }
 
 .menu-group-label {
@@ -183,6 +156,123 @@ body {
   height: 1px;
   background: var(--border);
   margin: 6px 4px;
+}
+
+/* ===== タブバー ===== */
+.tabbar-wrap {
+  display: flex;
+  align-items: center;
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  padding: 0 6px;
+}
+
+.tabbar {
+  display: flex;
+  align-items: stretch;
+  overflow-x: auto;
+  flex: 1;
+  scrollbar-width: thin;
+}
+
+.tabbar::-webkit-scrollbar {
+  height: 4px;
+}
+.tabbar::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 2px;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 8px 8px 12px;
+  font-size: 12px;
+  color: var(--text-dim);
+  border-right: 1px solid var(--border);
+  cursor: pointer;
+  white-space: nowrap;
+  max-width: 200px;
+  position: relative;
+  user-select: none;
+}
+
+.tab:hover {
+  background: var(--panel);
+}
+
+.tab.active {
+  background: var(--bg);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.tab.active::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: var(--accent);
+}
+
+.tab-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab-dirty-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--danger);
+  flex-shrink: 0;
+}
+
+.tab-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.tab-close:hover {
+  background: var(--border);
+  color: var(--danger);
+}
+
+.tab-close .material-symbols-outlined {
+  font-size: 14px;
+}
+
+.tab-add-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  border-radius: 7px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.tab-add-btn:hover {
+  background: var(--panel);
+  color: var(--accent);
 }
 
 /* ===== 検索パネル ===== */
@@ -397,6 +487,6 @@ body {
 }
 
 @media (max-width: 640px) {
-  .topbar-center { display: none; }
   .btn-label { display: none; }
+  .tab { max-width: 120px; }
 }
