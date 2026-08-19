@@ -188,7 +188,7 @@ async function restoreSession() {
         content: t.content,
         originalContent: t.content,
         fileHandle: t.fileHandle || null,
-        isDirty: false,
+        isDirty: false, // 復元直後は「保存済み」扱い(内容はそのまま復元されるため)
         encoding: t.encoding || "UTF-8",
         lastKnownModified: t.lastKnownModified || null,
       })
@@ -402,6 +402,7 @@ async function switchTab(id) {
   hideExternalChangeBar();
   editor.focus();
 
+  // 権限が必要な復元済みタブなら、ここでユーザー操作を伴って許可を要求する
   if (next.fileHandle) {
     try {
       const granted = await verifyPermission(next.fileHandle);
@@ -426,6 +427,7 @@ function closeTab(id) {
     return;
   }
 
+  // 最後の1つのタブを閉じる場合は、アプリ自体を終了する
   if (tabs.length === 1) {
     tab.isDirty = false;
     dbSet("tabs", []);
@@ -468,6 +470,7 @@ function setupMenuToggle(btn, menu) {
       m.hidden = true;
       m.style.transform = "";
       m.style.maxHeight = "";
+      m.querySelectorAll(".menu-category.open").forEach((c) => c.classList.remove("open"));
     });
     if (willShow) {
       menu.hidden = false;
@@ -495,16 +498,69 @@ function clampMenuPosition(menu) {
   menu.style.overflowY = "auto";
 }
 
+// ツールメニューのカテゴリ: ホバー/タップでサブメニューを開閉する
+function setupToolsCategories() {
+  const categories = toolsMenu.querySelectorAll(".menu-category");
+  categories.forEach((cat) => {
+    let hoverTimer = null;
+    const submenu = cat.querySelector(".submenu");
+
+    cat.addEventListener("mouseenter", () => {
+      clearTimeout(hoverTimer);
+      categories.forEach((c) => {
+        if (c !== cat) c.classList.remove("open");
+      });
+      cat.classList.add("open");
+      clampSubmenuPosition(submenu);
+    });
+
+    cat.addEventListener("mouseleave", () => {
+      hoverTimer = setTimeout(() => cat.classList.remove("open"), 200);
+    });
+
+    cat.addEventListener("click", (e) => {
+      // サブメニュー内の項目クリックはそちらのハンドラに任せる(タブレット/タッチ対応)
+      if (e.target.closest(".menu-item")) return;
+      const isOpen = cat.classList.contains("open");
+      categories.forEach((c) => c.classList.remove("open"));
+      if (!isOpen) {
+        cat.classList.add("open");
+        clampSubmenuPosition(submenu);
+      }
+    });
+  });
+}
+
+// サブメニューが画面右端をはみ出す場合は左側に開き直す
+function clampSubmenuPosition(submenu) {
+  submenu.style.left = "";
+  submenu.style.right = "";
+  submenu.style.marginLeft = "";
+  submenu.style.marginRight = "";
+
+  const rect = submenu.getBoundingClientRect();
+  if (rect.right > window.innerWidth - 8) {
+    submenu.style.left = "auto";
+    submenu.style.right = "100%";
+    submenu.style.marginLeft = "0";
+    submenu.style.marginRight = "6px";
+  }
+}
+
 function bindStaticEvents() {
   setupMenuToggle(toolsBtn, toolsMenu);
   setupMenuToggle(recentBtn, recentMenu);
   setupMenuToggle(encodingBtn, encodingMenu);
+  setupToolsCategories();
 
   document.addEventListener("click", (e) => {
     document.querySelectorAll(".menu").forEach((m) => {
       const owner = m.previousElementSibling;
       if (!m.hidden && !m.contains(e.target) && e.target !== owner && !owner?.contains(e.target)) {
         m.hidden = true;
+        m.style.transform = "";
+        m.style.maxHeight = "";
+        m.querySelectorAll(".menu-category.open").forEach((c) => c.classList.remove("open"));
       }
     });
   });
@@ -514,6 +570,7 @@ function bindStaticEvents() {
     if (!btn) return;
     const action = btn.dataset.action;
     toolsMenu.hidden = true;
+    toolsMenu.querySelectorAll(".menu-category.open").forEach((c) => c.classList.remove("open"));
     if (action === "gotoLine") {
       setGotoPanel(true);
     } else if (action === "insertTimestamp") {
@@ -556,7 +613,7 @@ function bindStaticEvents() {
     await reloadTabFromDisk(tab);
     hideExternalChangeBar();
   });
-    externalDismissBtn.addEventListener("click", async () => {
+  externalDismissBtn.addEventListener("click", async () => {
     const tab = getActiveTab();
     hideExternalChangeBar();
     if (!tab || !tab.fileHandle) return;
@@ -898,7 +955,7 @@ async function saveFile(forceSaveAs) {
     tab.name = tab.fileHandle.name;
     tab.lastKnownModified = savedFile.lastModified;
     const wasNonUtf8 = tab.encoding !== "UTF-8";
-    tab.encoding = "UTF-8";
+    tab.encoding = "UTF-8"; // File System Access APIの書き込みはUTF-8になる
 
     setTabDirty(tab, false);
     updateEncodingLabel();
@@ -1113,10 +1170,13 @@ function updateBracketInfo() {
   const charBefore = text[pos - 1];
 
   let matchIndex = -1;
+  let originIndex = -1;
 
   if (charAfter && OPEN_BRACKETS[charAfter]) {
+    originIndex = pos;
     matchIndex = findMatchingBracket(text, pos, charAfter, OPEN_BRACKETS[charAfter], 1);
   } else if (charBefore && CLOSE_BRACKETS[charBefore]) {
+    originIndex = pos - 1;
     matchIndex = findMatchingBracket(text, pos - 1, charBefore, CLOSE_BRACKETS[charBefore], -1);
   }
 
