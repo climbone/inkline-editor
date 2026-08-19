@@ -1,6 +1,6 @@
 // ===================== 状態 =====================
-let fileHandle = null;      // 現在開いているファイルのハンドル
-let originalText = "";      // 直近保存済みの内容(差分検知用)
+let fileHandle = null;
+let originalText = "";
 let saveTimer = null;
 let isDirty = false;
 
@@ -21,10 +21,16 @@ const saveBtn = document.getElementById("saveBtn");
 const saveAsBtn = document.getElementById("saveAsBtn");
 const themeBtn = document.getElementById("themeBtn");
 const findBtn = document.getElementById("findBtn");
+const wrapBtn = document.getElementById("wrapBtn");
+
+const toolsBtn = document.getElementById("toolsBtn");
+const toolsMenu = document.getElementById("toolsMenu");
 
 const findPanel = document.getElementById("findPanel");
 const findInput = document.getElementById("findInput");
 const replaceInput = document.getElementById("replaceInput");
+const regexToggle = document.getElementById("regexToggle");
+const caseToggle = document.getElementById("caseToggle");
 const findPrevBtn = document.getElementById("findPrevBtn");
 const findNextBtn = document.getElementById("findNextBtn");
 const replaceBtn = document.getElementById("replaceBtn");
@@ -37,12 +43,11 @@ init();
 
 async function init() {
   applyStoredTheme();
+  applyStoredWrap();
   registerServiceWorker();
-  bindEvents();
   updateGutter();
   updateCounters();
 
-  // Files appなどOSから「このファイルを開く」で起動された場合
   if ("launchQueue" in window) {
     window.launchQueue.setConsumer(async (launchParams) => {
       if (!launchParams.files || launchParams.files.length === 0) return;
@@ -60,21 +65,125 @@ function registerServiceWorker() {
 
 // ===================== テーマ =====================
 function applyStoredTheme() {
-  const saved = localStorage.getItem("inkline-theme") || "dark";
+  const saved = localStorage.getItem("inkline-theme") || "light";
   document.documentElement.setAttribute("data-theme", saved);
 }
 
-themeBtn?.addEventListener("click", () => {
+themeBtn.addEventListener("click", () => {
   const cur = document.documentElement.getAttribute("data-theme");
-  const next = cur === "light" ? "dark" : "light";
+  const next = cur === "dark" ? "light" : "dark";
   document.documentElement.setAttribute("data-theme", next);
   localStorage.setItem("inkline-theme", next);
 });
 
+// ===================== 折り返し =====================
+function applyStoredWrap() {
+  const on = localStorage.getItem("inkline-wrap") === "1";
+  editor.classList.toggle("wrap-on", on);
+}
+
+wrapBtn.addEventListener("click", () => {
+  const on = editor.classList.toggle("wrap-on");
+  localStorage.setItem("inkline-wrap", on ? "1" : "0");
+  setStatus(on ? "折り返し: ON" : "折り返し: OFF");
+});
+
+// ===================== ツールメニュー =====================
+toolsBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  toolsMenu.hidden = !toolsMenu.hidden;
+});
+
+document.addEventListener("click", (e) => {
+  if (!toolsMenu.hidden && !toolsMenu.contains(e.target) && e.target !== toolsBtn) {
+    toolsMenu.hidden = true;
+  }
+});
+
+toolsMenu.addEventListener("click", (e) => {
+  const btn = e.target.closest(".menu-item");
+  if (!btn) return;
+  runTool(btn.dataset.action);
+  toolsMenu.hidden = true;
+});
+
+function runTool(action) {
+  const text = editor.value;
+  const lines = text.split(/\r\n|\n/);
+  let result = text;
+
+  switch (action) {
+    case "upper":
+      result = text.toUpperCase();
+      break;
+    case "lower":
+      result = text.toLowerCase();
+      break;
+    case "title":
+      result = text.replace(/\b\w/g, (c) => c.toUpperCase());
+      break;
+    case "sortAsc":
+      result = lines.slice().sort((a, b) => a.localeCompare(b, "ja")).join("\n");
+      break;
+    case "sortDesc":
+      result = lines.slice().sort((a, b) => b.localeCompare(a, "ja")).join("\n");
+      break;
+    case "reverseLines":
+      result = lines.slice().reverse().join("\n");
+      break;
+    case "dedupe": {
+      const seen = new Set();
+      const out = [];
+      for (const l of lines) {
+        if (!seen.has(l)) {
+          seen.add(l);
+          out.push(l);
+        }
+      }
+      result = out.join("\n");
+      setStatus(`${lines.length - out.length} 行の重複を削除しました`);
+      break;
+    }
+    case "removeBlank":
+      result = lines.filter((l) => l.trim() !== "").join("\n");
+      break;
+    case "trimTrailing":
+      result = lines.map((l) => l.replace(/[ \t]+$/, "")).join("\n");
+      break;
+    case "insertLineNumbers":
+      result = lines.map((l, i) => `${i + 1}: ${l}`).join("\n");
+      break;
+    case "tabToSpace":
+      result = text.replace(/\t/g, "    ");
+      break;
+    case "spaceToTab":
+      result = lines.map((l) => l.replace(/^( {4})+/g, (m) => "\t".repeat(m.length / 4))).join("\n");
+      break;
+    case "eolToLF":
+      result = text.replace(/\r\n/g, "\n");
+      setStatus("改行コードをLFに統一しました");
+      break;
+    case "eolToCRLF":
+      result = text.replace(/\r\n/g, "\n").replace(/\n/g, "\r\n");
+      setStatus("改行コードをCRLFに統一しました");
+      break;
+  }
+
+  if (result !== text) {
+    const pos = editor.selectionStart;
+    editor.value = result;
+    editor.selectionStart = editor.selectionEnd = Math.min(pos, result.length);
+    editor.dispatchEvent(new Event("input"));
+    if (!statusMsg.textContent.includes("削除") && !statusMsg.textContent.includes("統一")) {
+      setStatus("変換しました");
+    }
+  }
+}
+
 // ===================== ファイル操作 =====================
 openBtn.addEventListener("click", async () => {
   if (!("showOpenFilePicker" in window)) {
-    document.getElementById("legacyOpen")?.click();
+    setStatus("このブラウザはファイル直接読み込みに対応していません", true);
     return;
   }
   try {
@@ -82,9 +191,7 @@ openBtn.addEventListener("click", async () => {
       types: [
         {
           description: "テキストファイル",
-          accept: {
-            "text/plain": [".txt", ".md", ".log", ".csv", ".json"],
-          },
+          accept: { "text/plain": [".txt", ".md", ".log", ".csv", ".json"] },
         },
       ],
     });
@@ -140,12 +247,7 @@ async function saveFile(forceSaveAs) {
     if (!fileHandle || forceSaveAs) {
       fileHandle = await window.showSaveFilePicker({
         suggestedName: fileHandle ? fileNameEl.textContent : "無題のファイル.txt",
-        types: [
-          {
-            description: "テキストファイル",
-            accept: { "text/plain": [".txt"] },
-          },
-        ],
+        types: [{ description: "テキストファイル", accept: { "text/plain": [".txt"] } }],
       });
     }
     const writable = await fileHandle.createWritable();
@@ -168,9 +270,7 @@ function downloadFallback(text) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = fileNameEl.textContent.endsWith(".txt")
-    ? fileNameEl.textContent
-    : `${fileNameEl.textContent}.txt`;
+  a.download = fileNameEl.textContent.endsWith(".txt") ? fileNameEl.textContent : `${fileNameEl.textContent}.txt`;
   a.click();
   URL.revokeObjectURL(url);
   originalText = text;
@@ -178,7 +278,7 @@ function downloadFallback(text) {
   setStatus("ダウンロードしました(このブラウザは直接保存に非対応です)");
 }
 
-// ===================== 自動保存(既存ファイルのみ) =====================
+// ===================== 自動保存 =====================
 editor.addEventListener("input", () => {
   setDirty(editor.value !== originalText);
   updateGutter();
@@ -204,7 +304,7 @@ function setDirty(dirty) {
 
 function setStatus(msg, isError) {
   statusMsg.textContent = msg;
-  statusMsg.style.color = isError ? "var(--coral)" : "var(--teal)";
+  statusMsg.style.color = isError ? "var(--danger)" : "var(--text-dim)";
 }
 
 // ===================== 行番号ガター =====================
@@ -250,47 +350,63 @@ function setFindPanel(show) {
   }
 }
 
+function buildRegex(query, forGlobalCount) {
+  if (!query) return null;
+  const flags = "g" + (caseToggle.checked ? "" : "i") + (forGlobalCount ? "" : "");
+  if (regexToggle.checked) {
+    try {
+      return new RegExp(query, flags);
+    } catch {
+      return null;
+    }
+  }
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(escaped, flags);
+}
+
 findInput.addEventListener("input", countMatches);
+regexToggle.addEventListener("change", countMatches);
+caseToggle.addEventListener("change", countMatches);
 
 function countMatches() {
-  const q = findInput.value;
-  if (!q) {
-    findCount.textContent = "";
+  const re = buildRegex(findInput.value, true);
+  if (!re) {
+    findCount.textContent = regexToggle.checked && findInput.value ? "正規表現エラー" : "";
     return;
   }
-  const count = editor.value.split(q).length - 1;
-  findCount.textContent = `${count} 件`;
+  const matches = editor.value.match(re);
+  findCount.textContent = matches ? `${matches.length} 件` : "0 件";
 }
 
 findNextBtn.addEventListener("click", () => jumpToMatch(1));
 findPrevBtn.addEventListener("click", () => jumpToMatch(-1));
 
 function jumpToMatch(dir) {
-  const q = findInput.value;
-  if (!q) return;
+  const re = buildRegex(findInput.value, true);
+  if (!re) return;
   const text = editor.value;
-  const from = editor.selectionEnd;
-
-  let idx;
-  if (dir === 1) {
-    idx = text.indexOf(q, from);
-    if (idx === -1) idx = text.indexOf(q); // 先頭から再検索
-  } else {
-    idx = text.lastIndexOf(q, Math.max(0, editor.selectionStart - q.length - 1));
-    if (idx === -1) idx = text.lastIndexOf(q); // 末尾から再検索
-  }
-
-  if (idx === -1) {
+  const matches = [...text.matchAll(re)];
+  if (matches.length === 0) {
     setStatus("見つかりませんでした", true);
     return;
   }
+
+  const cur = editor.selectionEnd;
+  let target;
+  if (dir === 1) {
+    target = matches.find((m) => m.index >= cur) || matches[0];
+  } else {
+    const before = matches.filter((m) => m.index < editor.selectionStart);
+    target = before.length ? before[before.length - 1] : matches[matches.length - 1];
+  }
+
   editor.focus();
-  editor.setSelectionRange(idx, idx + q.length);
+  editor.setSelectionRange(target.index, target.index + target[0].length);
   scrollSelectionIntoView();
 }
 
 function scrollSelectionIntoView() {
-  const lineHeight = 22.1; // font-size 13px * line-height 1.7 相当
+  const lineHeight = 22.1;
   const before = editor.value.slice(0, editor.selectionStart);
   const line = before.split("\n").length;
   editor.scrollTop = Math.max(0, (line - 4) * lineHeight);
@@ -298,24 +414,25 @@ function scrollSelectionIntoView() {
 }
 
 replaceBtn.addEventListener("click", () => {
-  const q = findInput.value;
-  const r = replaceInput.value;
-  if (!q) return;
+  const re = buildRegex(findInput.value, true);
+  if (!re) return;
   const sel = editor.value.slice(editor.selectionStart, editor.selectionEnd);
-  if (sel === q) {
+  const singleRe = new RegExp(re.source, re.flags.replace("g", ""));
+  if (singleRe.test(sel)) {
     const start = editor.selectionStart;
-    editor.setRangeText(r, start, start + q.length, "end");
+    const replaced = sel.replace(singleRe, replaceInput.value);
+    editor.setRangeText(replaced, start, start + sel.length, "end");
     editor.dispatchEvent(new Event("input"));
   }
   jumpToMatch(1);
 });
 
 replaceAllBtn.addEventListener("click", () => {
-  const q = findInput.value;
-  const r = replaceInput.value;
-  if (!q) return;
-  const count = editor.value.split(q).length - 1;
-  editor.value = editor.value.split(q).join(r);
+  const re = buildRegex(findInput.value, true);
+  if (!re) return;
+  const matches = editor.value.match(re);
+  const count = matches ? matches.length : 0;
+  editor.value = editor.value.replace(re, replaceInput.value);
   editor.dispatchEvent(new Event("input"));
   setStatus(`${count} 件を置換しました`);
   countMatches();
@@ -336,8 +453,9 @@ document.addEventListener("keydown", (e) => {
   } else if (mod && e.key.toLowerCase() === "f") {
     e.preventDefault();
     setFindPanel(true);
-  } else if (e.key === "Escape" && !findPanel.hidden) {
-    setFindPanel(false);
+  } else if (e.key === "Escape") {
+    if (!findPanel.hidden) setFindPanel(false);
+    if (!toolsMenu.hidden) toolsMenu.hidden = true;
   }
 });
 
@@ -348,7 +466,3 @@ window.addEventListener("beforeunload", (e) => {
     e.returnValue = "";
   }
 });
-
-function bindEvents() {
-  // 予約(将来の拡張ポイント)
-}
