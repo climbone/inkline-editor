@@ -123,8 +123,6 @@ function renderTabs() {
     title.textContent = tab.name;
     title.title = "ダブルクリックで名前を変更";
 
-    // ネイティブの dblclick は再描画で要素が作り直されると発火しないため、
-    // クリック時刻を自前で比較してダブルクリックを検知する
     title.addEventListener("click", (e) => {
       e.stopPropagation();
       const now = Date.now();
@@ -159,7 +157,6 @@ function renderTabs() {
     });
     el.appendChild(closeBtn);
 
-    // タイトル・閉じるボタン以外の余白をクリックした場合のタブ切替
     el.addEventListener("click", () => {
       if (tab.id !== activeTabId) switchTab(tab.id);
     });
@@ -271,16 +268,18 @@ function closeTab(id) {
     return;
   }
 
-  const idx = tabs.findIndex((t) => t.id === id);
-  tabs.splice(idx, 1);
-
-  if (tabs.length === 0) {
-    const fresh = makeTab("無題のファイル", "");
-    tabs.push(fresh);
-    activeTabId = fresh.id;
-    switchTab(fresh.id);
+  // 最後の1つのタブを閉じる場合は、アプリ自体を終了する
+  if (tabs.length === 1) {
+    tab.isDirty = false; // beforeunloadでの二重確認を防ぐ
+    window.close();
+    setTimeout(() => {
+      setStatus("このウィンドウは自動で閉じられませんでした。手動で閉じてください。", true);
+    }, 300);
     return;
   }
+
+  const idx = tabs.findIndex((t) => t.id === id);
+  tabs.splice(idx, 1);
 
   if (activeTabId === id) {
     const nextIdx = Math.min(idx, tabs.length - 1);
