@@ -530,7 +530,19 @@ function bindStaticEvents() {
     await reloadTabFromDisk(tab);
     hideExternalChangeBar();
   });
-  externalDismissBtn.addEventListener("click", hideExternalChangeBar);
+    externalDismissBtn.addEventListener("click", async () => {
+    const tab = getActiveTab();
+    hideExternalChangeBar();
+    if (!tab || !tab.fileHandle) return;
+    // 「確認した」ことを記録し、同じ変更で再度通知が出ないようにする
+    try {
+      const file = await tab.fileHandle.getFile();
+      tab.lastKnownModified = file.lastModified;
+      scheduleSaveSession();
+    } catch {
+      // 取得できない場合は何もしない(次回フォーカス時に再確認される)
+    }
+  });
 
   gotoCloseBtn.addEventListener("click", () => setGotoPanel(false));
   gotoGoBtn.addEventListener("click", goToLine);
