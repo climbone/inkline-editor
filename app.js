@@ -120,6 +120,11 @@ function renderTabs() {
     const title = document.createElement("span");
     title.className = "tab-title";
     title.textContent = tab.name;
+    title.title = "ダブルクリックで名前を変更";
+    title.addEventListener("dblclick", (e) => {
+      e.stopPropagation();
+      startRenameTab(tab, el);
+    });
     el.appendChild(title);
 
     if (tab.isDirty) {
@@ -141,6 +146,71 @@ function renderTabs() {
     el.addEventListener("click", () => switchTab(tab.id));
     tabbar.appendChild(el);
   }
+}
+
+function startRenameTab(tab, tabEl) {
+  const titleEl = tabEl.querySelector(".tab-title");
+  if (!titleEl) return;
+
+  const dotIdx = tab.name.lastIndexOf(".");
+  const baseName = dotIdx > 0 ? tab.name.slice(0, dotIdx) : tab.name;
+  const ext = dotIdx > 0 ? tab.name.slice(dotIdx) : "";
+
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "tab-rename-input";
+  input.value = baseName;
+  titleEl.replaceWith(input);
+  input.focus();
+  input.select();
+
+  let committed = false;
+
+  const commit = async () => {
+    if (committed) return;
+    committed = true;
+    const newBase = input.value.trim();
+    if (newBase) {
+      await renameTab(tab, newBase + ext);
+    } else {
+      renderTabs();
+    }
+  };
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      input.blur();
+    } else if (e.key === "Escape") {
+      committed = true;
+      renderTabs();
+    }
+  });
+  input.addEventListener("blur", commit);
+}
+
+async function renameTab(tab, newName) {
+  const oldName = tab.name;
+  tab.name = newName;
+
+  if (tab.fileHandle) {
+    if (typeof tab.fileHandle.move === "function") {
+      try {
+        await tab.fileHandle.move(newName);
+        setStatus(`ファイル名を「${newName}」に変更しました`);
+      } catch (err) {
+        console.error(err);
+        tab.name = oldName;
+        setStatus("ファイル名の変更に失敗しました", true);
+      }
+    } else {
+      setStatus("表示名を変更しました(実ファイル名は「名前を付けて保存」で変更してください)");
+    }
+  } else {
+    setStatus("タブ名を変更しました");
+  }
+
+  renderTabs();
 }
 
 function saveEditorStateToTab(tab) {
@@ -330,7 +400,6 @@ async function openFileHandleInNewTab(handle) {
     const file = await handle.getFile();
     const text = await file.text();
 
-    // 空の無題タブが残っていれば、それを再利用する
     const blank = tabs.find((t) => !t.fileHandle && !t.isDirty && t.content === "" && t.id !== activeTabId);
     const activeIsBlank = getActiveTab() && !getActiveTab().fileHandle && !getActiveTab().isDirty && getActiveTab().content === "" && tabs.length === 1;
 
