@@ -234,10 +234,7 @@ body {
 }
 
 .submenu {
-  position: absolute;
-  top: -6px;
-  left: 100%;
-  margin-left: 6px;
+  position: fixed;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -245,7 +242,7 @@ body {
   padding: 6px;
   min-width: 210px;
   display: none;
-  z-index: 40;
+  z-index: 1000;
 }
 
 .menu-category.open > .submenu {

@@ -520,7 +520,7 @@ function setupToolsCategories() {
         if (c !== cat) c.classList.remove("open");
       });
       cat.classList.add("open");
-      clampSubmenuPosition(submenu);
+      positionSubmenu(cat, submenu);
     });
 
     cat.addEventListener("mouseleave", () => {
@@ -534,26 +534,40 @@ function setupToolsCategories() {
       categories.forEach((c) => c.classList.remove("open"));
       if (!isOpen) {
         cat.classList.add("open");
-        clampSubmenuPosition(submenu);
+        positionSubmenu(cat, submenu);
       }
     });
   });
 }
 
-// サブメニューが画面右端をはみ出す場合は左側に開き直す
-function clampSubmenuPosition(submenu) {
-  submenu.style.left = "";
-  submenu.style.right = "";
-  submenu.style.marginLeft = "";
-  submenu.style.marginRight = "";
+// サブメニューを画面上の絶対座標(position: fixed)で配置する。
+// position: absolute だと、祖先要素(body の overflow: hidden など)に
+// よってウィンドウ幅が足りない時にはみ出た部分が切り取られて見えなく
+// なる問題があったため、視点(viewport)基準の座標で直接指定する。
+function positionSubmenu(cat, submenu) {
+  const margin = 8;
+  const catRect = cat.getBoundingClientRect();
 
+  // 一旦カテゴリの右側を基準に仮配置してサイズを測る
+  submenu.style.top = `${catRect.top - 6}px`;
+  submenu.style.left = `${catRect.right + 6}px`;
   const rect = submenu.getBoundingClientRect();
-  if (rect.right > window.innerWidth - 8) {
-    submenu.style.left = "auto";
-    submenu.style.right = "100%";
-    submenu.style.marginLeft = "0";
-    submenu.style.marginRight = "6px";
+
+  let left = catRect.right + 6;
+  if (left + rect.width > window.innerWidth - margin) {
+    // 右に入りきらない場合は左側に開く
+    left = catRect.left - rect.width - 6;
   }
+  if (left < margin) left = margin;
+
+  let top = catRect.top - 6;
+  if (top + rect.height > window.innerHeight - margin) {
+    top = window.innerHeight - margin - rect.height;
+  }
+  if (top < margin) top = margin;
+
+  submenu.style.left = `${left}px`;
+  submenu.style.top = `${top}px`;
 }
 
 function bindStaticEvents() {
