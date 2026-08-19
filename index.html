@@ -11,16 +11,28 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20,400,0,0&display=block">
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
   <div class="app">
     <!-- トップバー -->
     <header class="topbar">
       <div class="topbar-left">
-        <button id="openBtn" class="tool-btn" title="ファイルを開く (Ctrl+O)">
-          <span class="material-symbols-outlined">folder_open</span>
-          <span class="btn-label">開く</span>
-        </button>
+        <div class="menu-wrap">
+          <button id="openBtn" class="tool-btn" title="ファイルを開く (Ctrl+O)">
+            <span class="material-symbols-outlined">folder_open</span>
+            <span class="btn-label">開く</span>
+          </button>
+        </div>
+        <div class="menu-wrap">
+          <button id="recentBtn" class="tool-btn icon-only" title="最近使ったファイル">
+            <span class="material-symbols-outlined">history</span>
+          </button>
+          <div id="recentMenu" class="menu" hidden>
+            <div class="menu-group-label">最近使ったファイル</div>
+            <div id="recentList"></div>
+          </div>
+        </div>
         <button id="newBtn" class="tool-btn" title="新しいタブ (Ctrl+N)">
           <span class="material-symbols-outlined">note_add</span>
           <span class="btn-label">新規</span>
@@ -52,25 +64,57 @@
             <button data-action="spaceToTab" class="menu-item">先頭スペース→タブに変換</button>
             <button data-action="eolToLF" class="menu-item">改行コードをLFに統一</button>
             <button data-action="eolToCRLF" class="menu-item">改行コードをCRLFに統一</button>
+            <div class="menu-divider"></div>
+            <div class="menu-group-label">便利機能</div>
+            <button data-action="gotoLine" class="menu-item">行へ移動 (Ctrl+G)</button>
+            <button data-action="insertTimestamp" class="menu-item">現在日時を挿入</button>
+            <button data-action="columnEdit" class="menu-item">列を指定して挿入/削除(簡易矩形編集)</button>
           </div>
         </div>
       </div>
 
       <div class="topbar-right">
-        <button id="wrapBtn" class="tool-btn" title="折り返し切替">
+        <div class="menu-wrap">
+          <button id="encodingBtn" class="tool-btn" title="文字コード">
+            <span class="material-symbols-outlined">translate</span>
+            <span id="encodingLabel" class="btn-label">UTF-8</span>
+          </button>
+          <div id="encodingMenu" class="menu" hidden>
+            <div class="menu-group-label">読み込みし直す</div>
+            <button data-enc="UTF-8" class="menu-item">UTF-8として再読み込み</button>
+            <button data-enc="Shift_JIS" class="menu-item">Shift-JISとして再読み込み</button>
+            <div class="menu-divider"></div>
+            <div class="menu-note">保存時は常にUTF-8で書き込まれます</div>
+          </div>
+        </div>
+
+        <div class="font-size-group">
+          <button id="fontDownBtn" class="tool-btn icon-only" title="文字を小さく (Ctrl+-)">
+            <span class="material-symbols-outlined">remove</span>
+          </button>
+          <span id="fontSizeLabel" class="font-size-label">13px</span>
+          <button id="fontUpBtn" class="tool-btn icon-only" title="文字を大きく (Ctrl++)">
+            <span class="material-symbols-outlined">add</span>
+          </button>
+        </div>
+
+        <button id="mdPreviewBtn" class="tool-btn icon-only" title="Markdownプレビュー">
+          <span class="material-symbols-outlined">visibility</span>
+        </button>
+        <button id="wrapBtn" class="tool-btn icon-only" title="折り返し切替">
           <span class="material-symbols-outlined">wrap_text</span>
         </button>
-        <button id="findBtn" class="tool-btn" title="検索と置換 (Ctrl+F)">
+        <button id="findBtn" class="tool-btn icon-only" title="検索と置換 (Ctrl+F)">
           <span class="material-symbols-outlined">search</span>
         </button>
-        <button id="themeBtn" class="tool-btn" title="ライト/ダーク切替">
+        <button id="themeBtn" class="tool-btn icon-only" title="ライト/ダーク切替">
           <span class="material-symbols-outlined">contrast</span>
         </button>
         <button id="saveBtn" class="tool-btn primary" title="保存 (Ctrl+S)">
           <span class="material-symbols-outlined">save</span>
           <span class="btn-label">保存</span>
         </button>
-        <button id="saveAsBtn" class="tool-btn" title="名前を付けて保存 (Ctrl+Shift+S)">
+        <button id="saveAsBtn" class="tool-btn icon-only" title="名前を付けて保存 (Ctrl+Shift+S)">
           <span class="material-symbols-outlined">save_as</span>
         </button>
       </div>
@@ -117,6 +161,54 @@
       </div>
     </div>
 
+    <!-- 行へ移動パネル -->
+    <div id="gotoPanel" class="find-panel" hidden>
+      <div class="find-row">
+        <span class="material-symbols-outlined find-icon">arrow_forward</span>
+        <input id="gotoInput" type="number" min="1" placeholder="行番号" class="find-input short" />
+        <button id="gotoGoBtn" class="find-btn primary-outline">移動</button>
+        <span class="spacer-inline"></span>
+        <button id="gotoCloseBtn" class="find-close" title="閉じる">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 列指定 挿入/削除パネル(簡易矩形編集) -->
+    <div id="columnPanel" class="find-panel" hidden>
+      <div class="find-row">
+        <span class="find-label">開始行</span>
+        <input id="colStartLine" type="number" min="1" class="find-input short" />
+        <span class="find-label">終了行</span>
+        <input id="colEndLine" type="number" min="1" class="find-input short" />
+        <span class="find-label">列</span>
+        <input id="colIndex" type="number" min="1" class="find-input short" />
+      </div>
+      <div class="find-row">
+        <input id="colInsertText" type="text" placeholder="挿入する文字列(空欄でOK)" class="find-input" />
+        <span class="find-label">削除文字数</span>
+        <input id="colDeleteCount" type="number" min="0" value="0" class="find-input short" />
+        <button id="colApplyBtn" class="find-btn primary-outline">適用</button>
+        <span class="spacer-inline"></span>
+        <button id="columnCloseBtn" class="find-close" title="閉じる">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="find-row">
+        <span class="menu-note">選択範囲があれば開始/終了行を自動入力します。列は1始まりです。</span>
+      </div>
+    </div>
+
+    <!-- 外部変更の通知バー -->
+    <div id="externalChangeBar" class="notice-bar" hidden>
+      <span class="material-symbols-outlined">sync_problem</span>
+      <span id="externalChangeMsg">このファイルは外部で更新されています。</span>
+      <button id="externalReloadBtn" class="find-btn primary-outline">最新の内容を読み込む</button>
+      <button id="externalDismissBtn" class="find-close" title="閉じる">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+
     <!-- エディタ本体 -->
     <div class="editor-wrap">
       <div id="gutter" class="gutter"></div>
@@ -128,6 +220,7 @@
         autocomplete="off"
         placeholder="ここに書き始めてください…"
       ></textarea>
+      <div id="mdPreview" class="md-preview" hidden></div>
     </div>
 
     <!-- ステータスバー -->
@@ -147,6 +240,14 @@
       <div class="counter-box" title="行数">
         <span id="lineTotal">1</span>
         <label>行</label>
+      </div>
+      <div id="selectionBox" class="counter-box" hidden title="選択範囲の文字数/行数">
+        <span class="material-symbols-outlined status-icon">highlight_alt</span>
+        <span id="selectionInfo"></span>
+      </div>
+      <div id="bracketBox" class="counter-box" hidden title="対応する括弧の位置">
+        <span class="material-symbols-outlined status-icon">data_object</span>
+        <span id="bracketInfo"></span>
       </div>
       <div class="spacer"></div>
       <span id="statusMsg" class="status-msg">準備完了</span>
