@@ -464,9 +464,35 @@ function setupMenuToggle(btn, menu) {
   btn.addEventListener("click", (e) => {
     e.stopPropagation();
     const willShow = menu.hidden;
-    document.querySelectorAll(".menu").forEach((m) => (m.hidden = true));
-    menu.hidden = !willShow;
+    document.querySelectorAll(".menu").forEach((m) => {
+      m.hidden = true;
+      m.style.transform = "";
+      m.style.maxHeight = "";
+    });
+    if (willShow) {
+      menu.hidden = false;
+      clampMenuPosition(menu);
+    }
   });
+}
+
+// メニューが画面外にはみ出さないよう、表示位置を補正する
+function clampMenuPosition(menu) {
+  const margin = 8;
+  const rect = menu.getBoundingClientRect();
+
+  let dx = 0;
+  if (rect.right > window.innerWidth - margin) {
+    dx = window.innerWidth - margin - rect.right;
+  }
+  if (rect.left + dx < margin) {
+    dx = margin - rect.left;
+  }
+  menu.style.transform = dx ? `translateX(${dx}px)` : "";
+
+  const maxHeight = window.innerHeight - rect.top - margin;
+  menu.style.maxHeight = `${Math.max(160, maxHeight)}px`;
+  menu.style.overflowY = "auto";
 }
 
 function bindStaticEvents() {
