@@ -493,9 +493,18 @@ function clampMenuPosition(menu) {
   }
   menu.style.transform = dx ? `translateX(${dx}px)` : "";
 
-  const maxHeight = window.innerHeight - rect.top - margin;
-  menu.style.maxHeight = `${Math.max(160, maxHeight)}px`;
-  menu.style.overflowY = "auto";
+  // 縦方向に本当に収まりきらない時だけスクロールを有効にする。
+  // overflow-y だけを常時指定すると、CSSの仕様で overflow-x も
+  // 自動的に「はみ出しを隠す」扱いになり、右に開くサブメニューが
+  // 見えなくなってしまうため、必要な場合のみ設定する。
+  const availableHeight = window.innerHeight - rect.top - margin;
+  if (rect.height > availableHeight) {
+    menu.style.maxHeight = `${Math.max(160, availableHeight)}px`;
+    menu.style.overflowY = "auto";
+  } else {
+    menu.style.maxHeight = "";
+    menu.style.overflowY = "";
+  }
 }
 
 // ツールメニューのカテゴリ: ホバー/タップでサブメニューを開閉する
