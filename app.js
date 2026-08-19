@@ -3,6 +3,7 @@ let tabs = [];
 let activeTabId = null;
 let saveTimer = null;
 let tabCounter = 0;
+let lastTitleClick = { id: null, time: 0 };
 
 function makeTab(name, content, fileHandle) {
   tabCounter += 1;
@@ -121,10 +122,25 @@ function renderTabs() {
     title.className = "tab-title";
     title.textContent = tab.name;
     title.title = "ダブルクリックで名前を変更";
-    title.addEventListener("dblclick", (e) => {
+
+    // ネイティブの dblclick は再描画で要素が作り直されると発火しないため、
+    // クリック時刻を自前で比較してダブルクリックを検知する
+    title.addEventListener("click", (e) => {
       e.stopPropagation();
-      startRenameTab(tab, el);
+      const now = Date.now();
+      const isDoubleClick =
+        lastTitleClick.id === tab.id && now - lastTitleClick.time < 400;
+
+      if (isDoubleClick) {
+        lastTitleClick = { id: null, time: 0 };
+        startRenameTab(tab, el);
+        return;
+      }
+
+      lastTitleClick = { id: tab.id, time: now };
+      if (tab.id !== activeTabId) switchTab(tab.id);
     });
+
     el.appendChild(title);
 
     if (tab.isDirty) {
@@ -143,7 +159,11 @@ function renderTabs() {
     });
     el.appendChild(closeBtn);
 
-    el.addEventListener("click", () => switchTab(tab.id));
+    // タイトル・閉じるボタン以外の余白をクリックした場合のタブ切替
+    el.addEventListener("click", () => {
+      if (tab.id !== activeTabId) switchTab(tab.id);
+    });
+
     tabbar.appendChild(el);
   }
 }
@@ -177,6 +197,7 @@ function startRenameTab(tab, tabEl) {
     }
   };
 
+  input.addEventListener("click", (e) => e.stopPropagation());
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
