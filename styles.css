@@ -626,3 +626,9 @@ body {
   .btn-label { display: none; }
   .tab { max-width: 120px; }
 }
+
+/* hidden属性を確実に優先させる */
+.find-panel[hidden],
+.notice-bar[hidden] {
+  display: none !important;
+}
