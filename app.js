@@ -474,3 +474,141 @@ function toggleFindPanel() {
 }
 
 function setFindPanel(show) {
+  findPanel.hidden = !show;
+  if (show) {
+    findInput.focus();
+    findInput.select();
+    countMatches();
+  }
+}
+
+function buildRegex(query) {
+  if (!query) return null;
+  const flags = "g" + (caseToggle.checked ? "" : "i");
+  if (regexToggle.checked) {
+    try {
+      return new RegExp(query, flags);
+    } catch {
+      return null;
+    }
+  }
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(escaped, flags);
+}
+
+findInput.addEventListener("input", countMatches);
+regexToggle.addEventListener("change", countMatches);
+caseToggle.addEventListener("change", countMatches);
+
+function countMatches() {
+  const re = buildRegex(findInput.value);
+  if (!re) {
+    findCount.textContent = regexToggle.checked && findInput.value ? "正規表現エラー" : "";
+    return;
+  }
+  const matches = editor.value.match(re);
+  findCount.textContent = matches ? `${matches.length} 件` : "0 件";
+}
+
+findNextBtn.addEventListener("click", () => jumpToMatch(1));
+findPrevBtn.addEventListener("click", () => jumpToMatch(-1));
+
+function jumpToMatch(dir) {
+  const re = buildRegex(findInput.value);
+  if (!re) return;
+  const text = editor.value;
+  const matches = [...text.matchAll(re)];
+  if (matches.length === 0) {
+    setStatus("見つかりませんでした", true);
+    return;
+  }
+
+  const cur = editor.selectionEnd;
+  let target;
+  if (dir === 1) {
+    target = matches.find((m) => m.index >= cur) || matches[0];
+  } else {
+    const before = matches.filter((m) => m.index < editor.selectionStart);
+    target = before.length ? before[before.length - 1] : matches[matches.length - 1];
+  }
+
+  editor.focus();
+  editor.setSelectionRange(target.index, target.index + target[0].length);
+  scrollSelectionIntoView();
+}
+
+function scrollSelectionIntoView() {
+  const lineHeight = 22.1;
+  const before = editor.value.slice(0, editor.selectionStart);
+  const line = before.split("\n").length;
+  editor.scrollTop = Math.max(0, (line - 4) * lineHeight);
+  gutter.scrollTop = editor.scrollTop;
+}
+
+replaceBtn.addEventListener("click", () => {
+  const re = buildRegex(findInput.value);
+  if (!re) return;
+  const sel = editor.value.slice(editor.selectionStart, editor.selectionEnd);
+  const singleRe = new RegExp(re.source, re.flags.replace("g", ""));
+  if (singleRe.test(sel)) {
+    const start = editor.selectionStart;
+    const replaced = sel.replace(singleRe, replaceInput.value);
+    editor.setRangeText(replaced, start, start + sel.length, "end");
+    editor.dispatchEvent(new Event("input"));
+  }
+  jumpToMatch(1);
+});
+
+replaceAllBtn.addEventListener("click", () => {
+  const re = buildRegex(findInput.value);
+  if (!re) return;
+  const matches = editor.value.match(re);
+  const count = matches ? matches.length : 0;
+  editor.value = editor.value.replace(re, replaceInput.value);
+  editor.dispatchEvent(new Event("input"));
+  setStatus(`${count} 件を置換しました`);
+  countMatches();
+});
+
+// ===================== キーボードショートカット =====================
+document.addEventListener("keydown", (e) => {
+  const mod = e.ctrlKey || e.metaKey;
+  if (mod && e.key.toLowerCase() === "s") {
+    e.preventDefault();
+    saveFile(e.shiftKey);
+  } else if (mod && e.key.toLowerCase() === "o") {
+    e.preventDefault();
+    openBtn.click();
+  } else if (mod && e.key.toLowerCase() === "n") {
+    e.preventDefault();
+    createNewTab();
+  } else if (mod && e.key.toLowerCase() === "w") {
+    e.preventDefault();
+    if (activeTabId) closeTab(activeTabId);
+  } else if (mod && e.key === "Tab") {
+    e.preventDefault();
+    cycleTab(e.shiftKey ? -1 : 1);
+  } else if (mod && e.key.toLowerCase() === "f") {
+    e.preventDefault();
+    setFindPanel(true);
+  } else if (e.key === "Escape") {
+    if (!findPanel.hidden) setFindPanel(false);
+    if (!toolsMenu.hidden) toolsMenu.hidden = true;
+  }
+});
+
+function cycleTab(dir) {
+  if (tabs.length < 2) return;
+  const idx = tabs.findIndex((t) => t.id === activeTabId);
+  const nextIdx = (idx + dir + tabs.length) % tabs.length;
+  switchTab(tabs[nextIdx].id);
+}
+
+// ===================== 離脱前の警告 =====================
+window.addEventListener("beforeunload", (e) => {
+  saveEditorStateToTab(getActiveTab());
+  if (tabs.some((t) => t.isDirty)) {
+    e.preventDefault();
+    e.returnValue = "";
+  }
+});
