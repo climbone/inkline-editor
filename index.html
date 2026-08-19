@@ -21,7 +21,7 @@
           <span class="material-symbols-outlined">folder_open</span>
           <span class="btn-label">開く</span>
         </button>
-        <button id="newBtn" class="tool-btn" title="新規ファイル (Ctrl+N)">
+        <button id="newBtn" class="tool-btn" title="新しいタブ (Ctrl+N)">
           <span class="material-symbols-outlined">note_add</span>
           <span class="btn-label">新規</span>
         </button>
@@ -56,11 +56,6 @@
         </div>
       </div>
 
-      <div class="topbar-center">
-        <span id="fileName" class="file-name">無題のファイル</span>
-        <span id="dirtyDot" class="dirty-dot" hidden></span>
-      </div>
-
       <div class="topbar-right">
         <button id="wrapBtn" class="tool-btn" title="折り返し切替">
           <span class="material-symbols-outlined">wrap_text</span>
@@ -80,6 +75,14 @@
         </button>
       </div>
     </header>
+
+    <!-- タブバー -->
+    <div class="tabbar-wrap">
+      <div id="tabbar" class="tabbar"></div>
+      <button id="addTabBtn" class="tab-add-btn" title="新しいタブ (Ctrl+N)">
+        <span class="material-symbols-outlined">add</span>
+      </button>
+    </div>
 
     <!-- 検索・置換パネル -->
     <div id="findPanel" class="find-panel" hidden>
