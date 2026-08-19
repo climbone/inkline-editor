@@ -202,6 +202,56 @@ body {
   color: var(--accent);
 }
 
+/* ===== ツールメニューのカテゴリ / サブメニュー ===== */
+.menu-category {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+}
+
+.menu-category:hover,
+.menu-category.open {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.menu-category-caret {
+  font-size: 16px !important;
+  color: var(--text-dim);
+}
+
+.menu-category:hover .menu-category-caret,
+.menu-category.open .menu-category-caret {
+  color: var(--accent);
+}
+
+.submenu {
+  position: absolute;
+  top: -6px;
+  left: 100%;
+  margin-left: 6px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.10);
+  padding: 6px;
+  min-width: 210px;
+  display: none;
+  z-index: 40;
+}
+
+.menu-category.open > .submenu {
+  display: block;
+}
+
 .menu-divider {
   height: 1px;
   background: var(--border);
