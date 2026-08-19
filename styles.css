@@ -1,29 +1,27 @@
 :root {
-  --bg: #1e1e1c;
-  --panel: #252521;
-  --panel-2: #2c2c27;
-  --border: #3a3934;
-  --text: #e8e3d8;
-  --text-dim: #a39d8f;
-  --accent: #c9a227;
-  --accent-soft: #4a4326;
-  --teal: #5a8a82;
-  --coral: #d9704f;
+  --bg: #ffffff;
+  --panel: #ffffff;
+  --panel-2: #f6f6f7;
+  --border: #e4e4e7;
+  --text: #1f2023;
+  --text-dim: #8b8d94;
+  --accent: #3462e0;
+  --accent-soft: #eaf0fe;
+  --danger: #d1483b;
   --mono: "JetBrains Mono", ui-monospace, monospace;
-  --display: "Space Grotesk", sans-serif;
+  --display: "Inter", sans-serif;
 }
 
-[data-theme="light"] {
-  --bg: #f4f1ea;
-  --panel: #ffffff;
-  --panel-2: #efeadf;
-  --border: #ddd6c7;
-  --text: #2b2820;
-  --text-dim: #7a7362;
-  --accent: #a97b1f;
-  --accent-soft: #f1e6c4;
-  --teal: #3f746c;
-  --coral: #c1573a;
+[data-theme="dark"] {
+  --bg: #1c1d20;
+  --panel: #232427;
+  --panel-2: #2a2b2f;
+  --border: #38393e;
+  --text: #eceef0;
+  --text-dim: #97999f;
+  --accent: #6c92ff;
+  --accent-soft: #2a3352;
+  --danger: #ef6a5c;
 }
 
 * {
@@ -42,6 +40,11 @@ body {
   overflow: hidden;
 }
 
+.material-symbols-outlined {
+  font-size: 18px;
+  line-height: 1;
+}
+
 .app {
   display: flex;
   flex-direction: column;
@@ -53,11 +56,12 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
   padding: 8px 14px;
   background: var(--panel);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+  position: relative;
 }
 
 .topbar-left, .topbar-right {
@@ -86,21 +90,21 @@ body {
 }
 
 .dirty-dot {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  background: var(--coral);
+  background: var(--danger);
   display: inline-block;
 }
 
 .tool-btn {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   border: 1px solid var(--border);
-  background: var(--panel-2);
+  background: var(--panel);
   color: var(--text);
-  border-radius: 7px;
+  border-radius: 8px;
   padding: 6px 10px;
   font-family: var(--display);
   font-size: 12px;
@@ -110,25 +114,81 @@ body {
 }
 
 .tool-btn:hover {
-  background: var(--accent-soft);
-  border-color: var(--accent);
+  background: var(--panel-2);
+  border-color: var(--text-dim);
 }
 
 .tool-btn.primary {
   background: var(--accent);
-  color: #1e1e1c;
+  color: #fff;
   border-color: var(--accent);
   font-weight: 600;
 }
 
 .tool-btn.primary:hover {
-  filter: brightness(1.08);
+  filter: brightness(1.06);
+}
+
+.caret {
+  font-size: 16px !important;
+  margin-left: -2px;
+}
+
+/* ===== ツールメニュー ===== */
+.menu-wrap {
+  position: relative;
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.10);
+  padding: 6px;
+  min-width: 220px;
+  z-index: 20;
+}
+
+.menu-group-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  padding: 6px 10px 4px;
+}
+
+.menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--display);
+  font-size: 12.5px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.menu-item:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.menu-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 6px 4px;
 }
 
 /* ===== 検索パネル ===== */
 .find-panel {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 6px;
   padding: 8px 14px;
   background: var(--panel-2);
@@ -136,15 +196,26 @@ body {
   flex-shrink: 0;
 }
 
+.find-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.find-icon {
+  font-size: 16px !important;
+  color: var(--text-dim);
+}
+
 .find-input {
   background: var(--panel);
   border: 1px solid var(--border);
   color: var(--text);
-  border-radius: 6px;
-  padding: 5px 8px;
+  border-radius: 7px;
+  padding: 6px 9px;
   font-family: var(--mono);
   font-size: 12px;
-  width: 160px;
+  width: 200px;
 }
 
 .find-input:focus {
@@ -152,39 +223,61 @@ body {
   border-color: var(--accent);
 }
 
+.find-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  color: var(--text-dim);
+  cursor: pointer;
+  user-select: none;
+}
+
+.spacer-inline {
+  flex: 1;
+}
+
 .find-btn {
   border: 1px solid var(--border);
   background: var(--panel);
   color: var(--text);
-  border-radius: 6px;
-  padding: 5px 9px;
+  border-radius: 7px;
+  padding: 6px 10px;
   font-size: 12px;
   cursor: pointer;
+  display: flex;
+  align-items: center;
 }
 
 .find-btn:hover {
   border-color: var(--accent);
+  color: var(--accent);
+}
+
+.find-btn.primary-outline {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
 }
 
 .find-count {
   font-family: var(--mono);
   font-size: 11px;
   color: var(--text-dim);
-  min-width: 50px;
+  min-width: 46px;
 }
 
 .find-close {
-  margin-left: auto;
   border: none;
   background: transparent;
   color: var(--text-dim);
-  font-size: 16px;
   cursor: pointer;
-  padding: 0 6px;
+  padding: 4px;
+  display: flex;
 }
 
 .find-close:hover {
-  color: var(--coral);
+  color: var(--danger);
 }
 
 /* ===== エディタ本体 ===== */
@@ -196,9 +289,9 @@ body {
 }
 
 .gutter {
-  width: 52px;
+  width: 50px;
   flex-shrink: 0;
-  background: var(--panel);
+  background: var(--panel-2);
   border-right: 1px solid var(--border);
   color: var(--text-dim);
   font-family: var(--mono);
@@ -227,11 +320,16 @@ body {
   tab-size: 2;
 }
 
+.editor.wrap-on {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .editor::placeholder {
   color: var(--text-dim);
 }
 
-/* ===== ステータスバー(タイプライター風カウンター) ===== */
+/* ===== ステータスバー ===== */
 .statusbar {
   display: flex;
   align-items: stretch;
@@ -239,7 +337,7 @@ body {
   background: var(--border);
   border-top: 1px solid var(--border);
   flex-shrink: 0;
-  height: 30px;
+  height: 28px;
   overflow: hidden;
 }
 
@@ -253,10 +351,14 @@ body {
   font-size: 11px;
   color: var(--text);
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.02em;
 }
 
-.counter-box span {
+.status-icon {
+  font-size: 14px !important;
+  color: var(--text-dim);
+}
+
+.counter-box span:not(.status-icon) {
   color: var(--accent);
   font-weight: 600;
   min-width: 1ch;
@@ -278,7 +380,7 @@ body {
   padding: 0 14px;
   font-family: var(--mono);
   font-size: 11px;
-  color: var(--teal);
+  color: var(--text-dim);
   white-space: nowrap;
 }
 
@@ -296,5 +398,5 @@ body {
 
 @media (max-width: 640px) {
   .topbar-center { display: none; }
-  .tool-btn span { display: none; }
+  .btn-label { display: none; }
 }
