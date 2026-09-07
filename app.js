@@ -443,7 +443,7 @@ async function switchTab(id) {
 }
 
 // ===================== タブ閉じる =====================
-function closeTab(id) {
+async function closeTab(id) {
   const tab = tabs.find((t) => t.id === id);
   if (!tab) return;
 
@@ -461,10 +461,10 @@ function closeTab(id) {
     editor.value = "";
     updateGutter();
     updateCounters();
-    
-    // セッション状態をクリア
-    dbSet("tabs", []);
-    dbSet("activeTabId", null);
+
+    // セッション状態をクリア(window.closeで破棄される前に書き込みを完了させる)
+    await dbSet("tabs", []);
+    await dbSet("activeTabId", null);
 
     // ウィンドウを閉じる
     window.close();
@@ -692,17 +692,24 @@ function bindStaticEvents() {
     if (!e.dataTransfer) return;
 
     if (e.dataTransfer.items) {
+      // DataTransferItemList はドロップイベントの同期処理が終わると無効化されるため、
+      // await をまたぐ前に各アイテムの取得処理を同期的に開始しておく
+      const pending = [];
       for (const item of e.dataTransfer.items) {
-        if (item.kind === "file") {
-          if (typeof item.getAsFileSystemHandle === "function") {
-            const handle = await item.getAsFileSystemHandle();
-            if (handle && handle.kind === "file") {
-              await openFileHandleInNewTab(handle);
-              continue;
-            }
-          }
-          const file = item.getAsFile();
-          if (file) await openRawFileInNewTab(file);
+        if (item.kind !== "file") continue;
+        if (typeof item.getAsFileSystemHandle === "function") {
+          pending.push({ handlePromise: item.getAsFileSystemHandle(), fallbackFile: item.getAsFile() });
+        } else {
+          pending.push({ handlePromise: null, fallbackFile: item.getAsFile() });
+        }
+      }
+
+      for (const entry of pending) {
+        const handle = entry.handlePromise ? await entry.handlePromise : null;
+        if (handle && handle.kind === "file") {
+          await openFileHandleInNewTab(handle);
+        } else if (entry.fallbackFile) {
+          await openRawFileInNewTab(entry.fallbackFile);
         }
       }
     }
@@ -1009,11 +1016,20 @@ async function openRawFileInNewTab(file) {
     const buffer = await file.arrayBuffer();
     const { text, encoding } = decodeBuffer(buffer);
 
-    const blank = tabs.find((t) => !t.fileHandle && !t.isDirty && t.content === "" && t.id !== activeTabId);
-    const activeIsBlank = getActiveTab() && !getActiveTab().fileHandle && !getActiveTab().isDirty && getActiveTab().content === "" && tabs.length === 1;
+    // 未編集の空タブがあればそれを上書き利用する(openFileHandleInNewTabと同じロジック)
+    const activeTab = getActiveTab();
+    const activeIsBlank = activeTab && !activeTab.fileHandle && !activeTab.isDirty && activeTab.content === "";
+    const unusedBlankTab = tabs.find((t) => !t.fileHandle && !t.isDirty && t.content === "");
 
-    let tab = activeIsBlank ? getActiveTab() : (blank || makeTab({ name: file.name }));
-    if (!activeIsBlank && !blank) tabs.push(tab);
+    let tab;
+    if (activeIsBlank) {
+      tab = activeTab;
+    } else if (unusedBlankTab) {
+      tab = unusedBlankTab;
+    } else {
+      tab = makeTab({ name: file.name });
+      tabs.push(tab);
+    }
 
     tab.name = file.name;
     tab.content = text;
@@ -1530,7 +1546,7 @@ function handleQuoteKey(e) {
     return;
   }
 
-  if (/\w/.test(editor.value[start] || "")) return;
+  if (/\w/.test(editor.value[start - 1] || "") || /\w/.test(editor.value[start] || "")) return;
 
   e.preventDefault();
   insertTextAtCursor(quote + quote);
@@ -1553,6 +1569,8 @@ function handleBackspacePairDelete(e) {
 }
 
 editor.addEventListener("keydown", (e) => {
+  // IME変換中のキー操作(変換確定のEnterなど)は横取りしない
+  if (e.isComposing || e.keyCode === 229) return;
   if (e.ctrlKey || e.metaKey || e.altKey) return;
 
   if (e.key === "Enter") {
