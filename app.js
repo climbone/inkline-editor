@@ -100,6 +100,7 @@ const themeBtn = document.getElementById("themeBtn");
 const findBtn = document.getElementById("findBtn");
 const wrapBtn = document.getElementById("wrapBtn");
 const mdPreviewBtn = document.getElementById("mdPreviewBtn");
+const voiceBtn = document.getElementById("voiceBtn");
 
 const fontDownBtn = document.getElementById("fontDownBtn");
 const fontUpBtn = document.getElementById("fontUpBtn");
@@ -655,6 +656,7 @@ function bindStaticEvents() {
   fontUpBtn.addEventListener("click", () => setFontSize(currentFontSize() + 1));
 
   mdPreviewBtn.addEventListener("click", toggleMdPreview);
+  voiceBtn.addEventListener("click", toggleVoiceInput);
 
   externalReloadBtn.addEventListener("click", async () => {
     const tab = getActiveTab();
@@ -1607,6 +1609,116 @@ function updateMdPreview() {
   } catch (err) {
     mdPreview.textContent = "プレビューの表示に失敗しました";
   }
+}
+
+// ===================== 音声入力 =====================
+const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition = null;
+let voiceRecording = false;
+let voiceStopRequested = false;
+let voiceStoppedByUser = false;
+
+function toggleVoiceInput() {
+  if (voiceRecording) {
+    stopVoiceInput();
+  } else {
+    startVoiceInput();
+  }
+}
+
+function startVoiceInput() {
+  if (!SpeechRecognitionCtor) {
+    setStatus("このブラウザは音声入力に対応していません", true);
+    return;
+  }
+  if (voiceRecording) return;
+
+  if (!recognition) {
+    recognition = new SpeechRecognitionCtor();
+    recognition.lang = "ja-JP";
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.addEventListener("result", handleVoiceResult);
+    recognition.addEventListener("error", handleVoiceError);
+    recognition.addEventListener("end", handleVoiceEnd);
+  }
+
+  voiceStopRequested = false;
+  try {
+    recognition.start();
+  } catch (err) {
+    console.error(err);
+    return;
+  }
+  voiceRecording = true;
+  voiceBtn.classList.add("recording");
+  setStatus("音声入力を開始しました…");
+}
+
+function stopVoiceInput() {
+  if (!recognition || !voiceRecording) return;
+  voiceStopRequested = true;
+  voiceStoppedByUser = true;
+  recognition.stop();
+}
+
+function handleVoiceResult(event) {
+  let finalText = "";
+  let interimText = "";
+  for (let i = event.resultIndex; i < event.results.length; i++) {
+    const result = event.results[i];
+    if (result.isFinal) {
+      finalText += result[0].transcript;
+    } else {
+      interimText += result[0].transcript;
+    }
+  }
+  if (finalText) {
+    insertTextAtCursor(finalText);
+  }
+  if (interimText) {
+    setStatus(`(音声認識中) ${interimText}`);
+  }
+}
+
+const VOICE_TRANSIENT_ERRORS = new Set(["no-speech", "aborted"]);
+
+function handleVoiceError(event) {
+  console.error("SpeechRecognition error:", event.error);
+  // 無音タイムアウトや手動停止に伴うabortedは継続入力の一部として無視し、再開に任せる。
+  // それ以外(ネットワーク不通・権限なしなど)は再試行がエラーを繰り返すだけなので停止する。
+  if (VOICE_TRANSIENT_ERRORS.has(event.error)) return;
+
+  voiceStopRequested = true;
+  if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+    setStatus("マイクの使用が許可されていません", true);
+  } else if (event.error === "audio-capture") {
+    setStatus("マイクが見つかりません", true);
+  } else {
+    setStatus(`音声入力エラー: ${event.error}`, true);
+  }
+}
+
+function handleVoiceEnd() {
+  voiceRecording = false;
+  voiceBtn.classList.remove("recording");
+
+  if (!voiceStopRequested) {
+    // 無音などで自動停止した場合は継続入力のため再開する
+    try {
+      recognition.start();
+      voiceRecording = true;
+      voiceBtn.classList.add("recording");
+      return;
+    } catch (err) {
+      // 再開に失敗した場合は諦めて停止状態にする
+    }
+  }
+  // ユーザーが停止した場合のみ上書きする(エラーによる停止時は個別のエラーメッセージを残す)
+  if (voiceStoppedByUser) {
+    setStatus("音声入力を終了しました");
+  }
+  voiceStoppedByUser = false;
 }
 
 // ===================== 検索・置換 =====================
