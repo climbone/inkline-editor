@@ -1442,6 +1442,132 @@ function findMatchingBracket(text, startIndex, openChar, closeChar, dir) {
   return -1;
 }
 
+// ===================== 自動インデント・括弧/クォートの自動補完 =====================
+const QUOTE_CHARS = ['"', "'", "`"];
+
+function insertTextAtCursor(text) {
+  editor.focus();
+  if (document.execCommand("insertText", false, text)) return;
+  const start = editor.selectionStart;
+  const end = editor.selectionEnd;
+  editor.setRangeText(text, start, end, "end");
+  editor.dispatchEvent(new Event("input"));
+}
+
+function deleteSelectionRange(start, end) {
+  editor.setSelectionRange(start, end);
+  if (document.execCommand("delete")) return;
+  editor.setRangeText("", start, end, "start");
+  editor.dispatchEvent(new Event("input"));
+}
+
+function handleEnterAutoIndent(e) {
+  const value = editor.value;
+  const start = editor.selectionStart;
+  const end = editor.selectionEnd;
+  const lineStart = value.lastIndexOf("\n", start - 1) + 1;
+  const currentIndent = (value.slice(lineStart, start).match(/^[ \t]*/) || [""])[0];
+  const indentUnit = currentIndent.includes("\t") ? "\t" : "  ";
+
+  const charBefore = value[start - 1];
+  const charAfter = value[end];
+  const opensBlock = !!(charBefore && OPEN_BRACKETS[charBefore]);
+  const closesMatchingBlock = !!(opensBlock && CLOSE_BRACKETS[charAfter] === charBefore);
+
+  e.preventDefault();
+
+  if (opensBlock && closesMatchingBlock) {
+    const innerIndent = currentIndent + indentUnit;
+    insertTextAtCursor(`\n${innerIndent}\n${currentIndent}`);
+    const caretPos = start + 1 + innerIndent.length;
+    editor.setSelectionRange(caretPos, caretPos);
+  } else if (opensBlock) {
+    insertTextAtCursor(`\n${currentIndent}${indentUnit}`);
+  } else {
+    insertTextAtCursor(`\n${currentIndent}`);
+  }
+}
+
+function handleOpenBracketKey(e) {
+  const closeChar = OPEN_BRACKETS[e.key];
+  const start = editor.selectionStart;
+  const end = editor.selectionEnd;
+  e.preventDefault();
+  if (start !== end) {
+    const selected = editor.value.slice(start, end);
+    insertTextAtCursor(e.key + selected + closeChar);
+    editor.setSelectionRange(start + 1, start + 1 + selected.length);
+  } else {
+    insertTextAtCursor(e.key + closeChar);
+    editor.setSelectionRange(start + 1, start + 1);
+  }
+}
+
+function handleCloseBracketKey(e) {
+  const start = editor.selectionStart;
+  const end = editor.selectionEnd;
+  if (start !== end || editor.value[start] !== e.key) return;
+  e.preventDefault();
+  editor.setSelectionRange(start + 1, start + 1);
+}
+
+function handleQuoteKey(e) {
+  const quote = e.key;
+  const start = editor.selectionStart;
+  const end = editor.selectionEnd;
+
+  if (start === end && editor.value[start] === quote) {
+    e.preventDefault();
+    editor.setSelectionRange(start + 1, start + 1);
+    return;
+  }
+
+  if (start !== end) {
+    const selected = editor.value.slice(start, end);
+    e.preventDefault();
+    insertTextAtCursor(quote + selected + quote);
+    editor.setSelectionRange(start + 1, start + 1 + selected.length);
+    return;
+  }
+
+  if (/\w/.test(editor.value[start] || "")) return;
+
+  e.preventDefault();
+  insertTextAtCursor(quote + quote);
+  editor.setSelectionRange(start + 1, start + 1);
+}
+
+function handleBackspacePairDelete(e) {
+  const start = editor.selectionStart;
+  const end = editor.selectionEnd;
+  if (start !== end || start === 0) return;
+
+  const before = editor.value[start - 1];
+  const after = editor.value[start];
+  const isBracketPair = OPEN_BRACKETS[before] === after;
+  const isQuotePair = QUOTE_CHARS.includes(before) && after === before;
+  if (!isBracketPair && !isQuotePair) return;
+
+  e.preventDefault();
+  deleteSelectionRange(start - 1, start + 1);
+}
+
+editor.addEventListener("keydown", (e) => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+  if (e.key === "Enter") {
+    handleEnterAutoIndent(e);
+  } else if (OPEN_BRACKETS[e.key]) {
+    handleOpenBracketKey(e);
+  } else if (CLOSE_BRACKETS[e.key]) {
+    handleCloseBracketKey(e);
+  } else if (QUOTE_CHARS.includes(e.key)) {
+    handleQuoteKey(e);
+  } else if (e.key === "Backspace") {
+    handleBackspacePairDelete(e);
+  }
+});
+
 // ===================== Markdownプレビュー =====================
 let mdPreviewOn = false;
 
