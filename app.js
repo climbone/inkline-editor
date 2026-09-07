@@ -1555,6 +1555,35 @@ function handleQuoteKey(e) {
   editor.setSelectionRange(start + 1, start + 1);
 }
 
+function isMarkupTab() {
+  const tab = getActiveTab();
+  return detectLanguage(tab ? tab.name : "") === "markup";
+}
+
+function handleAngleOpenKey(e) {
+  if (!isMarkupTab()) return;
+  const start = editor.selectionStart;
+  const end = editor.selectionEnd;
+  e.preventDefault();
+  if (start !== end) {
+    const selected = editor.value.slice(start, end);
+    insertTextAtCursor("<" + selected + ">");
+    editor.setSelectionRange(start + 1, start + 1 + selected.length);
+  } else {
+    insertTextAtCursor("<>");
+    editor.setSelectionRange(start + 1, start + 1);
+  }
+}
+
+function handleAngleCloseKey(e) {
+  if (!isMarkupTab()) return;
+  const start = editor.selectionStart;
+  const end = editor.selectionEnd;
+  if (start !== end || editor.value[start] !== ">") return;
+  e.preventDefault();
+  editor.setSelectionRange(start + 1, start + 1);
+}
+
 function handleBackspacePairDelete(e) {
   const start = editor.selectionStart;
   const end = editor.selectionEnd;
@@ -1564,7 +1593,8 @@ function handleBackspacePairDelete(e) {
   const after = editor.value[start];
   const isBracketPair = OPEN_BRACKETS[before] === after;
   const isQuotePair = QUOTE_CHARS.includes(before) && after === before;
-  if (!isBracketPair && !isQuotePair) return;
+  const isAnglePair = before === "<" && after === ">" && isMarkupTab();
+  if (!isBracketPair && !isQuotePair && !isAnglePair) return;
 
   e.preventDefault();
   deleteSelectionRange(start - 1, start + 1);
@@ -1583,6 +1613,10 @@ editor.addEventListener("keydown", (e) => {
     handleCloseBracketKey(e);
   } else if (QUOTE_CHARS.includes(e.key)) {
     handleQuoteKey(e);
+  } else if (e.key === "<") {
+    handleAngleOpenKey(e);
+  } else if (e.key === ">") {
+    handleAngleCloseKey(e);
   } else if (e.key === "Backspace") {
     handleBackspacePairDelete(e);
   }
