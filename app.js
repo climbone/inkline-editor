@@ -100,6 +100,7 @@ const themeBtn = document.getElementById("themeBtn");
 const findBtn = document.getElementById("findBtn");
 const wrapBtn = document.getElementById("wrapBtn");
 const mdPreviewBtn = document.getElementById("mdPreviewBtn");
+const voiceBtn = document.getElementById("voiceBtn");
 
 const fontDownBtn = document.getElementById("fontDownBtn");
 const fontUpBtn = document.getElementById("fontUpBtn");
@@ -443,7 +444,7 @@ async function switchTab(id) {
 }
 
 // ===================== タブ閉じる =====================
-function closeTab(id) {
+async function closeTab(id) {
   const tab = tabs.find((t) => t.id === id);
   if (!tab) return;
 
@@ -461,10 +462,10 @@ function closeTab(id) {
     editor.value = "";
     updateGutter();
     updateCounters();
-    
-    // セッション状態をクリア
-    dbSet("tabs", []);
-    dbSet("activeTabId", null);
+
+    // セッション状態をクリア(window.closeで破棄される前に書き込みを完了させる)
+    await dbSet("tabs", []);
+    await dbSet("activeTabId", null);
 
     // ウィンドウを閉じる
     window.close();
@@ -655,6 +656,7 @@ function bindStaticEvents() {
   fontUpBtn.addEventListener("click", () => setFontSize(currentFontSize() + 1));
 
   mdPreviewBtn.addEventListener("click", toggleMdPreview);
+  voiceBtn.addEventListener("click", toggleVoiceInput);
 
   externalReloadBtn.addEventListener("click", async () => {
     const tab = getActiveTab();
@@ -692,17 +694,24 @@ function bindStaticEvents() {
     if (!e.dataTransfer) return;
 
     if (e.dataTransfer.items) {
+      // DataTransferItemList はドロップイベントの同期処理が終わると無効化されるため、
+      // await をまたぐ前に各アイテムの取得処理を同期的に開始しておく
+      const pending = [];
       for (const item of e.dataTransfer.items) {
-        if (item.kind === "file") {
-          if (typeof item.getAsFileSystemHandle === "function") {
-            const handle = await item.getAsFileSystemHandle();
-            if (handle && handle.kind === "file") {
-              await openFileHandleInNewTab(handle);
-              continue;
-            }
-          }
-          const file = item.getAsFile();
-          if (file) await openRawFileInNewTab(file);
+        if (item.kind !== "file") continue;
+        if (typeof item.getAsFileSystemHandle === "function") {
+          pending.push({ handlePromise: item.getAsFileSystemHandle(), fallbackFile: item.getAsFile() });
+        } else {
+          pending.push({ handlePromise: null, fallbackFile: item.getAsFile() });
+        }
+      }
+
+      for (const entry of pending) {
+        const handle = entry.handlePromise ? await entry.handlePromise : null;
+        if (handle && handle.kind === "file") {
+          await openFileHandleInNewTab(handle);
+        } else if (entry.fallbackFile) {
+          await openRawFileInNewTab(entry.fallbackFile);
         }
       }
     }
@@ -1009,11 +1018,20 @@ async function openRawFileInNewTab(file) {
     const buffer = await file.arrayBuffer();
     const { text, encoding } = decodeBuffer(buffer);
 
-    const blank = tabs.find((t) => !t.fileHandle && !t.isDirty && t.content === "" && t.id !== activeTabId);
-    const activeIsBlank = getActiveTab() && !getActiveTab().fileHandle && !getActiveTab().isDirty && getActiveTab().content === "" && tabs.length === 1;
+    // 未編集の空タブがあればそれを上書き利用する(openFileHandleInNewTabと同じロジック)
+    const activeTab = getActiveTab();
+    const activeIsBlank = activeTab && !activeTab.fileHandle && !activeTab.isDirty && activeTab.content === "";
+    const unusedBlankTab = tabs.find((t) => !t.fileHandle && !t.isDirty && t.content === "");
 
-    let tab = activeIsBlank ? getActiveTab() : (blank || makeTab({ name: file.name }));
-    if (!activeIsBlank && !blank) tabs.push(tab);
+    let tab;
+    if (activeIsBlank) {
+      tab = activeTab;
+    } else if (unusedBlankTab) {
+      tab = unusedBlankTab;
+    } else {
+      tab = makeTab({ name: file.name });
+      tabs.push(tab);
+    }
 
     tab.name = file.name;
     tab.content = text;
@@ -1530,7 +1548,7 @@ function handleQuoteKey(e) {
     return;
   }
 
-  if (/\w/.test(editor.value[start] || "")) return;
+  if (/\w/.test(editor.value[start - 1] || "") || /\w/.test(editor.value[start] || "")) return;
 
   e.preventDefault();
   insertTextAtCursor(quote + quote);
@@ -1553,6 +1571,8 @@ function handleBackspacePairDelete(e) {
 }
 
 editor.addEventListener("keydown", (e) => {
+  // IME変換中のキー操作(変換確定のEnterなど)は横取りしない
+  if (e.isComposing || e.keyCode === 229) return;
   if (e.ctrlKey || e.metaKey || e.altKey) return;
 
   if (e.key === "Enter") {
@@ -1589,6 +1609,116 @@ function updateMdPreview() {
   } catch (err) {
     mdPreview.textContent = "プレビューの表示に失敗しました";
   }
+}
+
+// ===================== 音声入力 =====================
+const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition = null;
+let voiceRecording = false;
+let voiceStopRequested = false;
+let voiceStoppedByUser = false;
+
+function toggleVoiceInput() {
+  if (voiceRecording) {
+    stopVoiceInput();
+  } else {
+    startVoiceInput();
+  }
+}
+
+function startVoiceInput() {
+  if (!SpeechRecognitionCtor) {
+    setStatus("このブラウザは音声入力に対応していません", true);
+    return;
+  }
+  if (voiceRecording) return;
+
+  if (!recognition) {
+    recognition = new SpeechRecognitionCtor();
+    recognition.lang = "ja-JP";
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.addEventListener("result", handleVoiceResult);
+    recognition.addEventListener("error", handleVoiceError);
+    recognition.addEventListener("end", handleVoiceEnd);
+  }
+
+  voiceStopRequested = false;
+  try {
+    recognition.start();
+  } catch (err) {
+    console.error(err);
+    return;
+  }
+  voiceRecording = true;
+  voiceBtn.classList.add("recording");
+  setStatus("音声入力を開始しました…");
+}
+
+function stopVoiceInput() {
+  if (!recognition || !voiceRecording) return;
+  voiceStopRequested = true;
+  voiceStoppedByUser = true;
+  recognition.stop();
+}
+
+function handleVoiceResult(event) {
+  let finalText = "";
+  let interimText = "";
+  for (let i = event.resultIndex; i < event.results.length; i++) {
+    const result = event.results[i];
+    if (result.isFinal) {
+      finalText += result[0].transcript;
+    } else {
+      interimText += result[0].transcript;
+    }
+  }
+  if (finalText) {
+    insertTextAtCursor(finalText);
+  }
+  if (interimText) {
+    setStatus(`(音声認識中) ${interimText}`);
+  }
+}
+
+const VOICE_TRANSIENT_ERRORS = new Set(["no-speech", "aborted"]);
+
+function handleVoiceError(event) {
+  console.error("SpeechRecognition error:", event.error);
+  // 無音タイムアウトや手動停止に伴うabortedは継続入力の一部として無視し、再開に任せる。
+  // それ以外(ネットワーク不通・権限なしなど)は再試行がエラーを繰り返すだけなので停止する。
+  if (VOICE_TRANSIENT_ERRORS.has(event.error)) return;
+
+  voiceStopRequested = true;
+  if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+    setStatus("マイクの使用が許可されていません", true);
+  } else if (event.error === "audio-capture") {
+    setStatus("マイクが見つかりません", true);
+  } else {
+    setStatus(`音声入力エラー: ${event.error}`, true);
+  }
+}
+
+function handleVoiceEnd() {
+  voiceRecording = false;
+  voiceBtn.classList.remove("recording");
+
+  if (!voiceStopRequested) {
+    // 無音などで自動停止した場合は継続入力のため再開する
+    try {
+      recognition.start();
+      voiceRecording = true;
+      voiceBtn.classList.add("recording");
+      return;
+    } catch (err) {
+      // 再開に失敗した場合は諦めて停止状態にする
+    }
+  }
+  // ユーザーが停止した場合のみ上書きする(エラーによる停止時は個別のエラーメッセージを残す)
+  if (voiceStoppedByUser) {
+    setStatus("音声入力を終了しました");
+  }
+  voiceStoppedByUser = false;
 }
 
 // ===================== 検索・置換 =====================
