@@ -113,6 +113,11 @@ const bookmarksBtn = document.getElementById("bookmarksBtn");
 const bookmarksMenu = document.getElementById("bookmarksMenu");
 const bookmarksList = document.getElementById("bookmarksList");
 
+const commandPaletteBtn = document.getElementById("commandPaletteBtn");
+const commandPaletteOverlay = document.getElementById("commandPaletteOverlay");
+const commandPaletteInput = document.getElementById("commandPaletteInput");
+const commandPaletteList = document.getElementById("commandPaletteList");
+
 const fontDownBtn = document.getElementById("fontDownBtn");
 const fontUpBtn = document.getElementById("fontUpBtn");
 const fontSizeLabel = document.getElementById("fontSizeLabel");
@@ -281,6 +286,28 @@ function applyStoredWrap() {
 function applyStoredInvisibles() {
   showInvisibles = localStorage.getItem("inkline-invisibles") === "1";
   invisiblesBtn.style.color = showInvisibles ? "var(--accent)" : "";
+}
+
+function toggleTheme() {
+  const cur = document.documentElement.getAttribute("data-theme");
+  const next = cur === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  localStorage.setItem("inkline-theme", next);
+}
+
+function toggleWrap() {
+  const on = editor.classList.toggle("wrap-on");
+  highlightLayer.classList.toggle("wrap-on", on);
+  localStorage.setItem("inkline-wrap", on ? "1" : "0");
+  setStatus(on ? "折り返し: ON" : "折り返し: OFF");
+}
+
+function toggleInvisibles() {
+  showInvisibles = !showInvisibles;
+  localStorage.setItem("inkline-invisibles", showInvisibles ? "1" : "0");
+  invisiblesBtn.style.color = showInvisibles ? "var(--accent)" : "";
+  updateHighlight();
+  setStatus(showInvisibles ? "空白・タブ・改行の表示: ON" : "空白・タブ・改行の表示: OFF");
 }
 
 function applyStoredFontSize() {
@@ -537,7 +564,6 @@ function setupMenuToggle(btn, menu) {
       m.hidden = true;
       m.style.transform = "";
       m.style.maxHeight = "";
-      m.querySelectorAll(".menu-category.open").forEach((c) => c.classList.remove("open"));
     });
     if (willShow) {
       menu.hidden = false;
@@ -569,66 +595,10 @@ function clampMenuPosition(menu) {
   }
 }
 
-function setupToolsCategories() {
-  const categories = toolsMenu.querySelectorAll(".menu-category");
-  categories.forEach((cat) => {
-    let hoverTimer = null;
-    const submenu = cat.querySelector(".submenu");
-
-    cat.addEventListener("mouseenter", () => {
-      clearTimeout(hoverTimer);
-      categories.forEach((c) => {
-        if (c !== cat) c.classList.remove("open");
-      });
-      cat.classList.add("open");
-      positionSubmenu(cat, submenu);
-    });
-
-    cat.addEventListener("mouseleave", () => {
-      hoverTimer = setTimeout(() => cat.classList.remove("open"), 200);
-    });
-
-    cat.addEventListener("click", (e) => {
-      if (e.target.closest(".menu-item")) return;
-      const isOpen = cat.classList.contains("open");
-      categories.forEach((c) => c.classList.remove("open"));
-      if (!isOpen) {
-        cat.classList.add("open");
-        positionSubmenu(cat, submenu);
-      }
-    });
-  });
-}
-
-function positionSubmenu(cat, submenu) {
-  const margin = 8;
-  const catRect = cat.getBoundingClientRect();
-
-  submenu.style.top = `${catRect.top - 6}px`;
-  submenu.style.left = `${catRect.right + 6}px`;
-  const rect = submenu.getBoundingClientRect();
-
-  let left = catRect.right + 6;
-  if (left + rect.width > window.innerWidth - margin) {
-    left = catRect.left - rect.width - 6;
-  }
-  if (left < margin) left = margin;
-
-  let top = catRect.top - 6;
-  if (top + rect.height > window.innerHeight - margin) {
-    top = window.innerHeight - margin - rect.height;
-  }
-  if (top < margin) top = margin;
-
-  submenu.style.left = `${left}px`;
-  submenu.style.top = `${top}px`;
-}
-
 function bindStaticEvents() {
   setupMenuToggle(toolsBtn, toolsMenu);
   setupMenuToggle(recentBtn, recentMenu);
   setupMenuToggle(encodingBtn, encodingMenu);
-  setupToolsCategories();
 
   outlineBtn.addEventListener("click", renderOutlineMenu);
   setupMenuToggle(outlineBtn, outlineMenu);
@@ -648,13 +618,7 @@ function bindStaticEvents() {
     jumpToLine(parseInt(btn.dataset.line, 10));
   });
 
-  invisiblesBtn.addEventListener("click", () => {
-    showInvisibles = !showInvisibles;
-    localStorage.setItem("inkline-invisibles", showInvisibles ? "1" : "0");
-    invisiblesBtn.style.color = showInvisibles ? "var(--accent)" : "";
-    updateHighlight();
-    setStatus(showInvisibles ? "空白・タブ・改行の表示: ON" : "空白・タブ・改行の表示: OFF");
-  });
+  invisiblesBtn.addEventListener("click", toggleInvisibles);
 
   document.addEventListener("click", (e) => {
     document.querySelectorAll(".menu").forEach((m) => {
@@ -663,7 +627,6 @@ function bindStaticEvents() {
         m.hidden = true;
         m.style.transform = "";
         m.style.maxHeight = "";
-        m.querySelectorAll(".menu-category.open").forEach((c) => c.classList.remove("open"));
       }
     });
   });
@@ -673,7 +636,6 @@ function bindStaticEvents() {
     if (!btn) return;
     const action = btn.dataset.action;
     toolsMenu.hidden = true;
-    toolsMenu.querySelectorAll(".menu-category.open").forEach((c) => c.classList.remove("open"));
     if (action === "gotoLine") {
       setGotoPanel(true);
     } else if (action === "insertTimestamp") {
@@ -694,19 +656,8 @@ function bindStaticEvents() {
     reDecodeCurrentTab(btn.dataset.enc);
   });
 
-  themeBtn.addEventListener("click", () => {
-    const cur = document.documentElement.getAttribute("data-theme");
-    const next = cur === "dark" ? "light" : "dark";
-    document.documentElement.setAttribute("data-theme", next);
-    localStorage.setItem("inkline-theme", next);
-  });
-
-  wrapBtn.addEventListener("click", () => {
-    const on = editor.classList.toggle("wrap-on");
-    highlightLayer.classList.toggle("wrap-on", on);
-    localStorage.setItem("inkline-wrap", on ? "1" : "0");
-    setStatus(on ? "折り返し: ON" : "折り返し: OFF");
-  });
+  themeBtn.addEventListener("click", toggleTheme);
+  wrapBtn.addEventListener("click", toggleWrap);
 
   fontDownBtn.addEventListener("click", () => setFontSize(currentFontSize() - 1));
   fontUpBtn.addEventListener("click", () => setFontSize(currentFontSize() + 1));
@@ -2379,6 +2330,124 @@ replaceAllBtn.addEventListener("click", () => {
   countMatches();
 });
 
+// ===================== コマンドパレット =====================
+const COMMANDS = [
+  { id: "openFile", label: "ファイルを開く", shortcut: "Ctrl+O", run: () => openBtn.click() },
+  { id: "newTab", label: "新しいタブ", shortcut: "Ctrl+N", run: () => createNewTab() },
+  { id: "save", label: "保存", shortcut: "Ctrl+S", run: () => saveFile(false) },
+  { id: "saveAs", label: "名前を付けて保存", shortcut: "Ctrl+Shift+S", run: () => saveFile(true) },
+  { id: "recent", label: "最近使ったファイルを表示", run: () => recentBtn.click() },
+
+  { id: "toggleTheme", label: "ライト/ダークテーマ切替", run: toggleTheme },
+  { id: "toggleWrap", label: "折り返し切替", run: toggleWrap },
+  { id: "toggleInvisibles", label: "空白・タブ・改行の表示切替", run: toggleInvisibles },
+  { id: "toggleMdPreview", label: "Markdownプレビュー切替", run: toggleMdPreview },
+  { id: "fontUp", label: "文字を大きく", shortcut: "Ctrl++", run: () => setFontSize(currentFontSize() + 1) },
+  { id: "fontDown", label: "文字を小さく", shortcut: "Ctrl+-", run: () => setFontSize(currentFontSize() - 1) },
+
+  { id: "find", label: "検索と置換", shortcut: "Ctrl+F", run: () => setFindPanel(true) },
+  { id: "gotoLine", label: "行へ移動", shortcut: "Ctrl+G", run: () => setGotoPanel(true) },
+  { id: "outline", label: "アウトライン(見出し・関数一覧)", run: () => outlineBtn.click() },
+  { id: "bookmarksList", label: "ブックマーク一覧", run: () => bookmarksBtn.click() },
+  { id: "toggleBookmark", label: "ブックマークの切替", shortcut: "Ctrl+F2", run: toggleBookmark },
+
+  { id: "voice", label: "音声入力の開始/停止", run: toggleVoiceInput },
+  { id: "insertTimestamp", label: "現在日時を挿入", run: insertTimestamp },
+  { id: "columnEdit", label: "列を指定して挿入/削除(簡易矩形編集)", run: openColumnPanel },
+
+  { id: "upper", label: "大文字に変換", run: () => runTool("upper") },
+  { id: "lower", label: "小文字に変換", run: () => runTool("lower") },
+  { id: "title", label: "単語の先頭を大文字に", run: () => runTool("title") },
+  { id: "sortAsc", label: "行を並び替え(昇順)", run: () => runTool("sortAsc") },
+  { id: "sortDesc", label: "行を並び替え(降順)", run: () => runTool("sortDesc") },
+  { id: "reverseLines", label: "行を逆順にする", run: () => runTool("reverseLines") },
+  { id: "dedupe", label: "重複行を削除", run: () => runTool("dedupe") },
+  { id: "removeBlank", label: "空行を削除", run: () => runTool("removeBlank") },
+  { id: "trimTrailing", label: "行末の空白を削除", run: () => runTool("trimTrailing") },
+  { id: "insertLineNumbers", label: "行番号を挿入", run: () => runTool("insertLineNumbers") },
+  { id: "tabToSpace", label: "タブ→スペースに変換", run: () => runTool("tabToSpace") },
+  { id: "spaceToTab", label: "先頭スペース→タブに変換", run: () => runTool("spaceToTab") },
+  { id: "eolToLF", label: "改行コードをLFに統一", run: () => runTool("eolToLF") },
+  { id: "eolToCRLF", label: "改行コードをCRLFに統一", run: () => runTool("eolToCRLF") },
+];
+
+let commandPaletteFiltered = [];
+let commandPaletteSelectedIndex = 0;
+
+function openCommandPalette() {
+  commandPaletteOverlay.hidden = false;
+  commandPaletteInput.value = "";
+  renderCommandPaletteList("");
+  commandPaletteInput.focus();
+}
+
+function closeCommandPalette() {
+  commandPaletteOverlay.hidden = true;
+}
+
+function renderCommandPaletteList(query) {
+  const q = query.trim().toLowerCase();
+  commandPaletteFiltered = q ? COMMANDS.filter((c) => c.label.toLowerCase().includes(q)) : COMMANDS;
+  commandPaletteSelectedIndex = 0;
+
+  if (commandPaletteFiltered.length === 0) {
+    commandPaletteList.innerHTML = '<div class="command-palette-empty">一致するコマンドがありません</div>';
+    return;
+  }
+
+  commandPaletteList.innerHTML = commandPaletteFiltered
+    .map(
+      (c, i) =>
+        `<div class="command-palette-item${i === 0 ? " selected" : ""}" data-index="${i}">` +
+        `<span>${escapeHtmlForHighlight(c.label)}</span>` +
+        (c.shortcut ? `<span class="command-palette-shortcut">${escapeHtmlForHighlight(c.shortcut)}</span>` : "") +
+        `</div>`
+    )
+    .join("");
+}
+
+function updateCommandPaletteSelection(newIndex) {
+  const items = commandPaletteList.querySelectorAll(".command-palette-item");
+  if (items.length === 0) return;
+  commandPaletteSelectedIndex = (newIndex + items.length) % items.length;
+  items.forEach((el, i) => el.classList.toggle("selected", i === commandPaletteSelectedIndex));
+  items[commandPaletteSelectedIndex].scrollIntoView({ block: "nearest" });
+}
+
+function runSelectedCommand() {
+  const cmd = commandPaletteFiltered[commandPaletteSelectedIndex];
+  if (!cmd) return;
+  closeCommandPalette();
+  cmd.run();
+}
+
+commandPaletteBtn.addEventListener("click", openCommandPalette);
+commandPaletteInput.addEventListener("input", () => renderCommandPaletteList(commandPaletteInput.value));
+commandPaletteList.addEventListener("click", (e) => {
+  const item = e.target.closest(".command-palette-item");
+  if (!item) return;
+  commandPaletteSelectedIndex = parseInt(item.dataset.index, 10);
+  runSelectedCommand();
+});
+commandPaletteOverlay.addEventListener("click", (e) => {
+  if (e.target === commandPaletteOverlay) closeCommandPalette();
+});
+commandPaletteInput.addEventListener("keydown", (e) => {
+  if (e.key === "ArrowDown") {
+    e.preventDefault();
+    updateCommandPaletteSelection(commandPaletteSelectedIndex + 1);
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    updateCommandPaletteSelection(commandPaletteSelectedIndex - 1);
+  } else if (e.key === "Enter") {
+    e.preventDefault();
+    runSelectedCommand();
+  } else if (e.key === "Escape") {
+    e.preventDefault();
+    closeCommandPalette();
+  }
+});
+
 // ===================== キーボードショートカット =====================
 document.addEventListener("keydown", (e) => {
   const mod = e.ctrlKey || e.metaKey;
@@ -2403,6 +2472,9 @@ document.addEventListener("keydown", (e) => {
   } else if (mod && e.key.toLowerCase() === "g") {
     e.preventDefault();
     setGotoPanel(true);
+  } else if (mod && e.key.toLowerCase() === "k") {
+    e.preventDefault();
+    openCommandPalette();
   } else if (mod && (e.key === "+" || e.key === "=")) {
     e.preventDefault();
     setFontSize(currentFontSize() + 1);
@@ -2425,6 +2497,7 @@ document.addEventListener("keydown", (e) => {
     if (!toolsMenu.hidden) toolsMenu.hidden = true;
     if (!outlineMenu.hidden) outlineMenu.hidden = true;
     if (!bookmarksMenu.hidden) bookmarksMenu.hidden = true;
+    if (!commandPaletteOverlay.hidden) closeCommandPalette();
   }
 });
 
