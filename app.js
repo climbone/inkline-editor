@@ -778,7 +778,13 @@ function bindStaticEvents() {
 function runTool(action) {
   const text = editor.value;
   const lines = text.split(/\r\n|\n/);
+  // 末尾の改行で split すると空文字列の要素が1つ増える。
+  // 並び替え・反転ではこれを実データの行として動かしてしまうと
+  // 末尾の改行が行頭に迷子ブランク行として出現してしまうため、除いて扱う。
+  const hasTrailingNewline = lines.length > 0 && lines[lines.length - 1] === "";
+  const contentLines = hasTrailingNewline ? lines.slice(0, -1) : lines;
   let result = text;
+  let statusSet = false;
 
   switch (action) {
     case "upper":
@@ -791,13 +797,13 @@ function runTool(action) {
       result = text.replace(/\b\w/g, (c) => c.toUpperCase());
       break;
     case "sortAsc":
-      result = lines.slice().sort((a, b) => a.localeCompare(b, "ja")).join("\n");
+      result = contentLines.slice().sort((a, b) => a.localeCompare(b, "ja")).join("\n") + (hasTrailingNewline ? "\n" : "");
       break;
     case "sortDesc":
-      result = lines.slice().sort((a, b) => b.localeCompare(a, "ja")).join("\n");
+      result = contentLines.slice().sort((a, b) => b.localeCompare(a, "ja")).join("\n") + (hasTrailingNewline ? "\n" : "");
       break;
     case "reverseLines":
-      result = lines.slice().reverse().join("\n");
+      result = contentLines.slice().reverse().join("\n") + (hasTrailingNewline ? "\n" : "");
       break;
     case "dedupe": {
       const seen = new Set();
@@ -810,6 +816,7 @@ function runTool(action) {
       }
       result = out.join("\n");
       setStatus(`${lines.length - out.length} 行の重複を削除しました`);
+      statusSet = true;
       break;
     }
     case "removeBlank":
@@ -830,10 +837,12 @@ function runTool(action) {
     case "eolToLF":
       result = text.replace(/\r\n/g, "\n");
       setStatus("改行コードをLFに統一しました");
+      statusSet = true;
       break;
     case "eolToCRLF":
       result = text.replace(/\r\n/g, "\n").replace(/\n/g, "\r\n");
       setStatus("改行コードをCRLFに統一しました");
+      statusSet = true;
       break;
   }
 
@@ -842,9 +851,7 @@ function runTool(action) {
     editor.value = result;
     editor.selectionStart = editor.selectionEnd = Math.min(pos, result.length);
     editor.dispatchEvent(new Event("input"));
-    if (!statusMsg.textContent.includes("削除") && !statusMsg.textContent.includes("統一")) {
-      setStatus("変換しました");
-    }
+    if (!statusSet) setStatus("変換しました");
   }
 }
 
@@ -1310,6 +1317,7 @@ async function renderRecentMenu() {
 editor.addEventListener("input", () => {
   const tab = getActiveTab();
   if (!tab) return;
+  adjustBookmarksForEdit(tab, tab.content, editor.value);
   tab.content = editor.value;
   setTabDirty(tab, tab.content !== tab.originalContent);
   updateGutter();
@@ -1611,6 +1619,46 @@ function renderOutlineMenu() {
 function currentLineNumber() {
   const pos = editor.selectionStart;
   return editor.value.slice(0, pos).split("\n").length;
+}
+
+// 編集で行が増減した分だけブックマークの行番号を追従させる。
+// (そうしないと、ブックマークした行より上で改行を挿入/削除しただけで
+//  ブックマークが無関係な行を指したままになってしまう)
+function adjustBookmarksForEdit(tab, oldText, newText) {
+  if (!tab.bookmarks.size || oldText === newText) return;
+
+  const delta = newText.split("\n").length - oldText.split("\n").length;
+  if (delta === 0) return;
+
+  // 変更されていない先頭部分・末尾部分を求め、その間だけを「変更範囲」とみなす
+  let start = 0;
+  const maxStart = Math.min(oldText.length, newText.length);
+  while (start < maxStart && oldText[start] === newText[start]) start++;
+
+  let oldEnd = oldText.length;
+  let newEnd = newText.length;
+  while (oldEnd > start && newEnd > start && oldText[oldEnd - 1] === newText[newEnd - 1]) {
+    oldEnd--;
+    newEnd--;
+  }
+
+  const beforeLine = oldText.slice(0, start).split("\n").length; // ここより前は無変更
+  const afterLine = oldText.slice(0, oldEnd).split("\n").length; // ここ以降(旧行番号)は無変更で、そのままずらせる
+  const newTotalLines = newText.split("\n").length;
+
+  const shifted = new Set();
+  for (const line of tab.bookmarks) {
+    if (line < beforeLine) {
+      shifted.add(line);
+    } else if (line >= afterLine) {
+      const newLine = line + delta;
+      if (newLine >= 1) shifted.add(newLine);
+    } else {
+      // 変更範囲内の行は追従先が曖昧なため、行数の範囲内に収めてその場に留める
+      shifted.add(Math.max(1, Math.min(line, newTotalLines)));
+    }
+  }
+  tab.bookmarks = shifted;
 }
 
 function toggleBookmark() {
