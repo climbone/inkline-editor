@@ -26,7 +26,13 @@
         "application/json": [".json"],
         "text/x-log": [".log"],
         "text/html": [".html", ".htm"],
-        "text/javascript": [".js", ".mjs"]
+        "text/javascript": [".js", ".mjs", ".cjs", ".jsx"],
+        "application/typescript": [".ts", ".tsx"],
+        "text/css": [".css"],
+        "application/xml": [".xml", ".svg"],
+        "application/x-sh": [".sh", ".bash", ".zsh"],
+        "text/x-python": [".py", ".pyw"],
+        "application/x-yaml": [".yml", ".yaml"]
       },
       "icons": [
         { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }

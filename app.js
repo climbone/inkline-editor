@@ -958,8 +958,12 @@ openBtn.addEventListener("click", async () => {
           accept: {
             "text/plain": [".txt", ".md", ".log", ".csv", ".json"],
             "text/html": [".html", ".htm"],
-            "text/javascript": [".js"],
-            "text/css": [".css"]
+            "text/javascript": [".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx"],
+            "text/css": [".css"],
+            "application/xml": [".xml", ".svg"],
+            "application/x-sh": [".sh", ".bash", ".zsh"],
+            "text/x-python": [".py", ".pyw"],
+            "application/x-yaml": [".yml", ".yaml"]
           },
         },
       ],
@@ -1075,11 +1079,24 @@ async function saveFile(forceSaveAs) {
       const ext = suggestedName.split(".").pop().toLowerCase();
       const mimeTypes = {
         js: { "text/javascript": [".js"] },
+        mjs: { "text/javascript": [".mjs"] },
+        cjs: { "text/javascript": [".cjs"] },
+        jsx: { "text/javascript": [".jsx"] },
+        ts: { "application/typescript": [".ts"] },
+        tsx: { "application/typescript": [".tsx"] },
         html: { "text/html": [".html", ".htm"] },
         css: { "text/css": [".css"] },
         json: { "application/json": [".json"] },
         txt: { "text/plain": [".txt"] },
-        md: { "text/markdown": [".md"] }
+        md: { "text/markdown": [".md"] },
+        xml: { "application/xml": [".xml"] },
+        svg: { "application/xml": [".svg"] },
+        sh: { "application/x-sh": [".sh"] },
+        bash: { "application/x-sh": [".bash"] },
+        zsh: { "application/x-sh": [".zsh"] },
+        py: { "text/x-python": [".py"] },
+        yml: { "application/x-yaml": [".yml"] },
+        yaml: { "application/x-yaml": [".yaml"] }
       };
       const acceptObj = mimeTypes[ext] || { "text/plain": [`.${ext}`] };
 
@@ -1315,17 +1332,58 @@ const LANG_RULES = {
     { type: "link", re: /\[[^\]\n]*\]\([^)\n]*\)/ },
     { type: "comment", re: /^>[^\n]*/ },
   ],
+  shell: [
+    { type: "comment", re: /#[^\n]*/ },
+    { type: "string", re: /"(?:\\.|[^"\\])*"|'[^'\n]*'/ },
+    { type: "attr", re: /\$\{[^}\n]*\}|\$[A-Za-z_][\w]*|\$[0-9@#?*!$-]/ },
+    {
+      type: "keyword",
+      re: /\b(?:if|then|elif|else|fi|for|while|until|do|done|case|esac|in|function|select|time|return|exit|break|continue|local|export|readonly|declare|eval|exec|source|trap|shift|unset|set|echo|read|printf|test)\b/,
+    },
+    { type: "number", re: /\b\d+(?:\.\d+)?\b/ },
+  ],
+  python: [
+    { type: "comment", re: /#[^\n]*/ },
+    { type: "string", re: /(?:[rRbBfFuU]{1,2})?(?:"""[\s\S]*?"""|'''[\s\S]*?'''|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')/ },
+    { type: "number", re: /\b0[xX][0-9a-fA-F]+\b|\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b/ },
+    {
+      type: "keyword",
+      re: /\b(?:def|class|return|if|elif|else|for|while|break|continue|pass|import|from|as|try|except|finally|raise|with|lambda|yield|global|nonlocal|del|assert|async|await|and|or|not|in|is|None|True|False|self)\b/,
+    },
+    { type: "function", re: /\b[A-Za-z_][\w]*(?=\s*\()/ },
+  ],
+  yaml: [
+    { type: "comment", re: /#[^\n]*/ },
+    { type: "key", re: /^[ \t]*-?[ \t]*[A-Za-z0-9_.-]+(?=\s*:)/m },
+    { type: "string", re: /"(?:\\.|[^"\\])*"|'[^'\n]*'/ },
+    { type: "keyword", re: /\b(?:true|false|null|yes|no)\b/ },
+    { type: "number", re: /-?\b\d+(?:\.\d+)?\b/ },
+  ],
 };
 
 const EXT_LANG_MAP = {
   js: "javascript",
   mjs: "javascript",
+  cjs: "javascript",
+  jsx: "javascript",
+  ts: "javascript",
+  tsx: "javascript",
   json: "json",
   css: "css",
   html: "markup",
   htm: "markup",
+  xml: "markup",
+  svg: "markup",
   md: "markdown",
   markdown: "markdown",
+  sh: "shell",
+  bash: "shell",
+  zsh: "shell",
+  ksh: "shell",
+  py: "python",
+  pyw: "python",
+  yml: "yaml",
+  yaml: "yaml",
 };
 
 const TOKENIZER_CACHE = {};
@@ -1723,7 +1781,7 @@ function moveLines(dir) {
   }
 }
 
-const LINE_COMMENT_TOKENS = { javascript: "//" };
+const LINE_COMMENT_TOKENS = { javascript: "//", shell: "#", python: "#", yaml: "#" };
 const BLOCK_COMMENT_TOKENS = {
   css: ["/*", "*/"],
   markup: ["<!--", "-->"],
