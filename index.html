@@ -85,8 +85,29 @@
                 <button data-action="gotoLine" class="menu-item">行へ移動 (Ctrl+G)</button>
                 <button data-action="insertTimestamp" class="menu-item">現在日時を挿入</button>
                 <button data-action="columnEdit" class="menu-item">列を指定して挿入/削除(簡易矩形編集)</button>
+                <button data-action="toggleBookmark" class="menu-item">ブックマークの切替 (Ctrl+F2)</button>
               </div>
             </div>
+          </div>
+        </div>
+
+        <div class="menu-wrap">
+          <button id="outlineBtn" class="tool-btn icon-only" title="アウトライン(見出し・関数一覧)">
+            <span class="material-symbols-outlined">toc</span>
+          </button>
+          <div id="outlineMenu" class="menu" hidden>
+            <div class="menu-group-label">アウトライン</div>
+            <div id="outlineList"></div>
+          </div>
+        </div>
+
+        <div class="menu-wrap">
+          <button id="bookmarksBtn" class="tool-btn icon-only" title="ブックマーク一覧(Ctrl+F2で切替 / F2で次へ / Shift+F2で前へ)">
+            <span class="material-symbols-outlined">bookmark</span>
+          </button>
+          <div id="bookmarksMenu" class="menu" hidden>
+            <div class="menu-group-label">ブックマーク</div>
+            <div id="bookmarksList"></div>
           </div>
         </div>
       </div>
@@ -124,6 +145,9 @@
         </button>
         <button id="wrapBtn" class="tool-btn icon-only" title="折り返し切替">
           <span class="material-symbols-outlined">wrap_text</span>
+        </button>
+        <button id="invisiblesBtn" class="tool-btn icon-only" title="空白・タブ・改行を表示">
+          <span class="material-symbols-outlined">space_bar</span>
         </button>
         <button id="findBtn" class="tool-btn icon-only" title="検索と置換 (Ctrl+F)">
           <span class="material-symbols-outlined">search</span>

@@ -49,6 +49,7 @@ let saveTimer = null;
 let sessionSaveTimer = null;
 let tabCounter = 0;
 let lastTitleClick = { id: null, time: 0 };
+let showInvisibles = false;
 
 function makeTab(opts = {}) {
   tabCounter += 1;
@@ -64,6 +65,7 @@ function makeTab(opts = {}) {
     selectionEnd: 0,
     encoding: opts.encoding || "UTF-8",
     lastKnownModified: opts.lastKnownModified || null,
+    bookmarks: new Set(opts.bookmarks || []),
   };
 }
 
@@ -101,6 +103,15 @@ const findBtn = document.getElementById("findBtn");
 const wrapBtn = document.getElementById("wrapBtn");
 const mdPreviewBtn = document.getElementById("mdPreviewBtn");
 const voiceBtn = document.getElementById("voiceBtn");
+const invisiblesBtn = document.getElementById("invisiblesBtn");
+
+const outlineBtn = document.getElementById("outlineBtn");
+const outlineMenu = document.getElementById("outlineMenu");
+const outlineList = document.getElementById("outlineList");
+
+const bookmarksBtn = document.getElementById("bookmarksBtn");
+const bookmarksMenu = document.getElementById("bookmarksMenu");
+const bookmarksList = document.getElementById("bookmarksList");
 
 const fontDownBtn = document.getElementById("fontDownBtn");
 const fontUpBtn = document.getElementById("fontUpBtn");
@@ -153,6 +164,7 @@ async function init() {
   applyStoredTheme();
   applyStoredWrap();
   applyStoredFontSize();
+  applyStoredInvisibles();
   registerServiceWorker();
   bindStaticEvents();
 
@@ -202,6 +214,7 @@ async function restoreSession() {
         isDirty: false,
         encoding: t.encoding || "UTF-8",
         lastKnownModified: t.lastKnownModified || null,
+        bookmarks: t.bookmarks || [],
       })
     );
 
@@ -238,6 +251,7 @@ async function saveSessionNow() {
     fileHandle: t.fileHandle,
     encoding: t.encoding,
     lastKnownModified: t.lastKnownModified,
+    bookmarks: [...t.bookmarks],
   }));
   await dbSet("tabs", lightweight);
   await dbSet("activeTabId", activeTabId);
@@ -253,6 +267,11 @@ function applyStoredWrap() {
   const on = localStorage.getItem("inkline-wrap") === "1";
   editor.classList.toggle("wrap-on", on);
   highlightLayer.classList.toggle("wrap-on", on);
+}
+
+function applyStoredInvisibles() {
+  showInvisibles = localStorage.getItem("inkline-invisibles") === "1";
+  invisiblesBtn.style.color = showInvisibles ? "var(--accent)" : "";
 }
 
 function applyStoredFontSize() {
@@ -602,6 +621,32 @@ function bindStaticEvents() {
   setupMenuToggle(encodingBtn, encodingMenu);
   setupToolsCategories();
 
+  outlineBtn.addEventListener("click", renderOutlineMenu);
+  setupMenuToggle(outlineBtn, outlineMenu);
+  outlineList.addEventListener("click", (e) => {
+    const btn = e.target.closest(".menu-item[data-line]");
+    if (!btn) return;
+    outlineMenu.hidden = true;
+    jumpToLine(parseInt(btn.dataset.line, 10));
+  });
+
+  bookmarksBtn.addEventListener("click", renderBookmarksMenu);
+  setupMenuToggle(bookmarksBtn, bookmarksMenu);
+  bookmarksList.addEventListener("click", (e) => {
+    const btn = e.target.closest(".menu-item[data-line]");
+    if (!btn) return;
+    bookmarksMenu.hidden = true;
+    jumpToLine(parseInt(btn.dataset.line, 10));
+  });
+
+  invisiblesBtn.addEventListener("click", () => {
+    showInvisibles = !showInvisibles;
+    localStorage.setItem("inkline-invisibles", showInvisibles ? "1" : "0");
+    invisiblesBtn.style.color = showInvisibles ? "var(--accent)" : "";
+    updateHighlight();
+    setStatus(showInvisibles ? "空白・タブ・改行の表示: ON" : "空白・タブ・改行の表示: OFF");
+  });
+
   document.addEventListener("click", (e) => {
     document.querySelectorAll(".menu").forEach((m) => {
       const owner = m.previousElementSibling;
@@ -626,6 +671,8 @@ function bindStaticEvents() {
       insertTimestamp();
     } else if (action === "columnEdit") {
       openColumnPanel();
+    } else if (action === "toggleBookmark") {
+      toggleBookmark();
     } else {
       runTool(action);
     }
@@ -814,11 +861,9 @@ function setGotoPanel(show) {
   }
 }
 
-function goToLine() {
-  const n = parseInt(gotoInput.value, 10);
-  if (!n || n < 1) return;
+function moveCursorToLine(n) {
   const lines = editor.value.split("\n");
-  const targetLine = Math.min(n, lines.length);
+  const targetLine = Math.min(Math.max(1, n), lines.length);
   let index = 0;
   for (let i = 0; i < targetLine - 1; i++) {
     index += lines[i].length + 1;
@@ -827,8 +872,21 @@ function goToLine() {
   editor.setSelectionRange(index, index + (lines[targetLine - 1]?.length || 0));
   scrollSelectionIntoView();
   updateCursorPos();
+  return targetLine;
+}
+
+function goToLine() {
+  const n = parseInt(gotoInput.value, 10);
+  if (!n || n < 1) return;
+  const targetLine = moveCursorToLine(n);
   setGotoPanel(false);
   setStatus(`${targetLine} 行目へ移動しました`);
+}
+
+function jumpToLine(n, msg) {
+  if (!n || n < 1) return;
+  const targetLine = moveCursorToLine(n);
+  setStatus(msg || `${targetLine} 行目へ移動しました`);
 }
 
 // ===================== 簡易矩形編集(列指定 挿入/削除) =====================
@@ -1281,16 +1339,28 @@ function setStatus(msg, isError) {
 
 // ===================== 行番号ガター =====================
 function updateGutter() {
+  const tab = getActiveTab();
+  const bookmarks = tab ? tab.bookmarks : null;
   const lines = editor.value.split("\n").length;
   let out = "";
-  for (let i = 1; i <= lines; i++) out += i + "\n";
-  gutter.textContent = out;
+  for (let i = 1; i <= lines; i++) {
+    const bookmarked = bookmarks && bookmarks.has(i);
+    out += `<span class="gutter-line${bookmarked ? " bookmarked" : ""}">${i}</span>\n`;
+  }
+  gutter.innerHTML = out;
   updateHighlight();
 }
 
 // ===================== シンタックスハイライト =====================
 function escapeHtmlForHighlight(str) {
   return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// showInvisibles が有効な時だけ、エスケープ済みテキストに空白等の可視化マーカーを重ねる
+// (トークナイザーが生成する <span class="tok-x"> 自体には適用しない)
+function escapeAndMark(str) {
+  const escaped = escapeHtmlForHighlight(str);
+  return showInvisibles ? markInvisibles(escaped) : escaped;
 }
 
 const LANG_RULES = {
@@ -1402,7 +1472,7 @@ function getTokenizer(lang) {
     combined.lastIndex = 0;
     while ((m = combined.exec(text))) {
       if (m.index > lastIndex) {
-        html += escapeHtmlForHighlight(text.slice(lastIndex, m.index));
+        html += escapeAndMark(text.slice(lastIndex, m.index));
       }
       let type = "plain";
       for (let i = 0; i < rules.length; i++) {
@@ -1411,12 +1481,12 @@ function getTokenizer(lang) {
           break;
         }
       }
-      html += `<span class="tok-${type}">${escapeHtmlForHighlight(m[0])}</span>`;
+      html += `<span class="tok-${type}">${escapeAndMark(m[0])}</span>`;
       lastIndex = m.index + m[0].length;
       if (m[0].length === 0) combined.lastIndex += 1;
     }
     if (lastIndex < text.length) {
-      html += escapeHtmlForHighlight(text.slice(lastIndex));
+      html += escapeAndMark(text.slice(lastIndex));
     }
     return html;
   };
@@ -1433,14 +1503,154 @@ function detectLanguage(filename) {
   return EXT_LANG_MAP[ext] || null;
 }
 
+// ===================== 空白・タブ・改行の可視化 =====================
+const WS_MARKERS = {
+  " ": '<span class="ws-space">·</span>',
+  "\t": '<span class="ws-tab">\t</span>',
+  "　": '<span class="ws-zenkaku">　</span>',
+  "\n": '<span class="ws-eol">↵</span>\n',
+};
+
+function markInvisibles(html) {
+  return html.replace(/[ \t　\n]/g, (ch) => WS_MARKERS[ch]);
+}
+
 function updateHighlight() {
   const tab = getActiveTab();
   const lang = detectLanguage(tab ? tab.name : "");
   const tokenize = lang ? getTokenizer(lang) : null;
   const text = editor.value;
-  highlightCode.innerHTML = (tokenize ? tokenize(text) : escapeHtmlForHighlight(text)) + "\n";
+  const html = tokenize ? tokenize(text) : escapeAndMark(text);
+  highlightCode.innerHTML = html + "\n";
   highlightLayer.scrollTop = editor.scrollTop;
   highlightLayer.scrollLeft = editor.scrollLeft;
+}
+
+// ===================== アウトライン(見出し・関数一覧) =====================
+function getOutlineItems(lang, text) {
+  const items = [];
+  const lines = text.split("\n");
+
+  if (lang === "markdown") {
+    lines.forEach((line, i) => {
+      const m = line.match(/^(#{1,6})\s+(.+)$/);
+      if (m) items.push({ line: i + 1, level: m[1].length, label: m[2].trim() });
+    });
+  } else if (lang === "javascript") {
+    lines.forEach((line, i) => {
+      let m = line.match(/^\s*(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s*\*?\s+([A-Za-z_$][\w$]*)/);
+      if (m) {
+        items.push({ line: i + 1, level: 1, label: `function ${m[1]}()` });
+        return;
+      }
+      m = line.match(/^\s*(?:export\s+)?class\s+([A-Za-z_$][\w$]*)/);
+      if (m) {
+        items.push({ line: i + 1, level: 1, label: `class ${m[1]}` });
+        return;
+      }
+      m = line.match(/^\s*(?:export\s+)?(?:const|let)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>/);
+      if (m) items.push({ line: i + 1, level: 2, label: `${m[1]} =>` });
+    });
+  } else if (lang === "python") {
+    lines.forEach((line, i) => {
+      let m = line.match(/^(\s*)def\s+([A-Za-z_]\w*)/);
+      if (m) {
+        items.push({ line: i + 1, level: m[1].length > 0 ? 2 : 1, label: `def ${m[2]}()` });
+        return;
+      }
+      m = line.match(/^(\s*)class\s+([A-Za-z_]\w*)/);
+      if (m) items.push({ line: i + 1, level: 1, label: `class ${m[2]}` });
+    });
+  } else if (lang === "shell") {
+    lines.forEach((line, i) => {
+      const m = line.match(/^\s*(?:function\s+)?([A-Za-z_][\w-]*)\s*\(\)\s*\{?\s*$/);
+      if (m) items.push({ line: i + 1, level: 1, label: `${m[1]}()` });
+    });
+  }
+
+  return items;
+}
+
+function renderOutlineMenu() {
+  const tab = getActiveTab();
+  const lang = detectLanguage(tab ? tab.name : "");
+  const items = lang ? getOutlineItems(lang, editor.value) : [];
+
+  if (items.length === 0) {
+    outlineList.innerHTML = `<div class="menu-empty">${
+      lang ? "アウトライン項目が見つかりません" : "この形式はアウトラインに対応していません"
+    }</div>`;
+    return;
+  }
+
+  outlineList.innerHTML = items
+    .map(
+      (item) =>
+        `<button type="button" class="menu-item" data-line="${item.line}" style="padding-left:${
+          10 + (item.level - 1) * 14
+        }px" title="${escapeHtmlForHighlight(item.label)}">${item.line}: ${escapeHtmlForHighlight(item.label)}</button>`
+    )
+    .join("");
+}
+
+// ===================== ブックマーク =====================
+function currentLineNumber() {
+  const pos = editor.selectionStart;
+  return editor.value.slice(0, pos).split("\n").length;
+}
+
+function toggleBookmark() {
+  const tab = getActiveTab();
+  if (!tab) return;
+  const line = currentLineNumber();
+  if (tab.bookmarks.has(line)) {
+    tab.bookmarks.delete(line);
+    setStatus(`${line} 行目のブックマークを解除しました`);
+  } else {
+    tab.bookmarks.add(line);
+    setStatus(`${line} 行目にブックマークを設定しました`);
+  }
+  updateGutter();
+  scheduleSaveSession();
+}
+
+function jumpToNextBookmark(reverse) {
+  const tab = getActiveTab();
+  if (!tab || tab.bookmarks.size === 0) {
+    setStatus("ブックマークがありません", true);
+    return;
+  }
+  const sorted = [...tab.bookmarks].sort((a, b) => a - b);
+  const current = currentLineNumber();
+  let target;
+  if (reverse) {
+    target = [...sorted].reverse().find((l) => l < current);
+    if (target === undefined) target = sorted[sorted.length - 1];
+  } else {
+    target = sorted.find((l) => l > current);
+    if (target === undefined) target = sorted[0];
+  }
+  jumpToLine(target, `ブックマーク: ${target} 行目`);
+}
+
+function renderBookmarksMenu() {
+  const tab = getActiveTab();
+  const sorted = tab ? [...tab.bookmarks].sort((a, b) => a - b) : [];
+
+  if (sorted.length === 0) {
+    bookmarksList.innerHTML = '<div class="menu-empty">ブックマークがありません(Ctrl+F2で現在行に設定)</div>';
+    return;
+  }
+
+  const lines = editor.value.split("\n");
+  bookmarksList.innerHTML = sorted
+    .map((line) => {
+      const preview = (lines[line - 1] || "").trim().slice(0, 40);
+      return `<button type="button" class="menu-item" data-line="${line}" title="${escapeHtmlForHighlight(
+        preview
+      )}">${line}: ${escapeHtmlForHighlight(preview)}</button>`;
+    })
+    .join("");
 }
 
 // ===================== カウンター類 =====================
@@ -2137,11 +2347,22 @@ document.addEventListener("keydown", (e) => {
   } else if (mod && e.key === "-") {
     e.preventDefault();
     setFontSize(currentFontSize() - 1);
+  } else if (mod && !e.shiftKey && e.key === "F2") {
+    e.preventDefault();
+    toggleBookmark();
+  } else if (!mod && !e.shiftKey && e.key === "F2") {
+    e.preventDefault();
+    jumpToNextBookmark(false);
+  } else if (!mod && e.shiftKey && e.key === "F2") {
+    e.preventDefault();
+    jumpToNextBookmark(true);
   } else if (e.key === "Escape") {
     if (!findPanel.hidden) setFindPanel(false);
     if (!gotoPanel.hidden) setGotoPanel(false);
     if (!columnPanel.hidden) columnPanel.hidden = true;
     if (!toolsMenu.hidden) toolsMenu.hidden = true;
+    if (!outlineMenu.hidden) outlineMenu.hidden = true;
+    if (!bookmarksMenu.hidden) bookmarksMenu.hidden = true;
   }
 });
 
