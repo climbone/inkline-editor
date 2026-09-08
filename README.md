@@ -36,7 +36,7 @@ python3 -m http.server 8000
 > 一度Chromeを再起動する必要がある場合があります。
 
 ## 主な機能
-- シンタックスハイライト(JavaScript / JSON / HTML / CSS / Markdown、拡張子から自動判定・外部依存なし)
+- シンタックスハイライト(JavaScript(TypeScript/JSX含む) / JSON / HTML・XML / CSS / Markdown / Shell / Python / YAML、拡張子から自動判定・外部依存なし)
 - 自動インデント(改行時に直前行のインデントを継承、`{`などの直後ではさらに1段深く)
 - 括弧・クォートの自動補完(`( [ { " ' `` `の入力で自動的に閉じ、選択中のテキストを囲むことも可能。閉じ文字の上書き入力・空ペアのBackspace一括削除にも対応)
 - HTMLファイル(`.html` / `.htm`)限定の拡張機能
@@ -44,7 +44,7 @@ python3 -m http.server 8000
   - タグの自動クローズ(`<div>` まで入力すると `</div>` を自動挿入。`<br>` `<img>` などの空要素や、閉じタグ自体は対象外)
 - コードエディター向けの編集機能
   - `Tab` / `Shift+Tab` でインデント・アウトデント(選択行をまとめて処理)
-  - `Ctrl+/` で行コメントの切替(JavaScriptは`//`、CSS/HTML/Markdownは`/* */`または`<!-- -->`でブロックコメント)
+  - `Ctrl+/` で行コメントの切替(JavaScript/Shell/Python/YAMLは`//`または`#`、CSS/HTML/Markdownは`/* */`または`<!-- -->`でブロックコメント)
   - `Alt+↑` / `Alt+↓` で行の入れ替え(上下移動)
   - `Ctrl+D` で行の複製
 - 音声入力(マイクボタンからWeb Speech APIで音声をテキスト化してカーソル位置に挿入。日本語(ja-JP)対応。オンライン接続が必要です)
@@ -61,4 +61,9 @@ python3 -m http.server 8000
   - `Ctrl+F` 検索・置換パネル表示
 
 ## 対応ファイル形式
-`.txt` / `.md` / `.markdown` / `.csv` / `.json` / `.log`
+`.txt` / `.md` / `.markdown` / `.csv` / `.json` / `.log` / `.html` / `.htm` / `.css` /
+`.js` / `.mjs` / `.cjs` / `.jsx` / `.ts` / `.tsx` / `.xml` / `.svg` /
+`.sh` / `.bash` / `.zsh` / `.py` / `.pyw` / `.yml` / `.yaml`
+
+> 上記以外の拡張子でも、ファイル選択ダイアログで「すべてのファイル」を選べば
+> テキストとして開けます(シンタックスハイライトは対象外のプレーン表示になります)。
