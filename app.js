@@ -1555,6 +1555,63 @@ function handleQuoteKey(e) {
   editor.setSelectionRange(start + 1, start + 1);
 }
 
+function isMarkupTab() {
+  const tab = getActiveTab();
+  return detectLanguage(tab ? tab.name : "") === "markup";
+}
+
+function handleAngleOpenKey(e) {
+  if (!isMarkupTab()) return;
+  const start = editor.selectionStart;
+  const end = editor.selectionEnd;
+  e.preventDefault();
+  if (start !== end) {
+    const selected = editor.value.slice(start, end);
+    insertTextAtCursor("<" + selected + ">");
+    editor.setSelectionRange(start + 1, start + 1 + selected.length);
+  } else {
+    insertTextAtCursor("<>");
+    editor.setSelectionRange(start + 1, start + 1);
+  }
+}
+
+const VOID_ELEMENTS = new Set([
+  "area", "base", "br", "col", "embed", "hr", "img", "input",
+  "link", "meta", "param", "source", "track", "wbr",
+]);
+
+function getAutoCloseTagName(text, gtIndex) {
+  const ltIndex = text.lastIndexOf("<", gtIndex - 1);
+  if (ltIndex === -1) return null;
+  const tagContent = text.slice(ltIndex + 1, gtIndex);
+  if (!tagContent || /^[/!?]/.test(tagContent) || /\/\s*$/.test(tagContent)) return null;
+  const m = tagContent.match(/^([a-zA-Z][a-zA-Z0-9-]*)/);
+  if (!m) return null;
+  return VOID_ELEMENTS.has(m[1].toLowerCase()) ? null : m[1];
+}
+
+function maybeAutoCloseTag(gtIndex) {
+  const tagName = getAutoCloseTagName(editor.value, gtIndex);
+  if (!tagName) return;
+  const pos = gtIndex + 1;
+  insertTextAtCursor(`</${tagName}>`);
+  editor.setSelectionRange(pos, pos);
+}
+
+function handleAngleCloseKey(e) {
+  if (!isMarkupTab()) return;
+  const start = editor.selectionStart;
+  const end = editor.selectionEnd;
+  if (start !== end) return;
+  e.preventDefault();
+  if (editor.value[start] === ">") {
+    editor.setSelectionRange(start + 1, start + 1);
+  } else {
+    insertTextAtCursor(">");
+  }
+  maybeAutoCloseTag(start);
+}
+
 function handleBackspacePairDelete(e) {
   const start = editor.selectionStart;
   const end = editor.selectionEnd;
@@ -1564,7 +1621,8 @@ function handleBackspacePairDelete(e) {
   const after = editor.value[start];
   const isBracketPair = OPEN_BRACKETS[before] === after;
   const isQuotePair = QUOTE_CHARS.includes(before) && after === before;
-  if (!isBracketPair && !isQuotePair) return;
+  const isAnglePair = before === "<" && after === ">" && isMarkupTab();
+  if (!isBracketPair && !isQuotePair && !isAnglePair) return;
 
   e.preventDefault();
   deleteSelectionRange(start - 1, start + 1);
@@ -1583,8 +1641,171 @@ editor.addEventListener("keydown", (e) => {
     handleCloseBracketKey(e);
   } else if (QUOTE_CHARS.includes(e.key)) {
     handleQuoteKey(e);
+  } else if (e.key === "<") {
+    handleAngleOpenKey(e);
+  } else if (e.key === ">") {
+    handleAngleCloseKey(e);
   } else if (e.key === "Backspace") {
     handleBackspacePairDelete(e);
+  }
+});
+
+// ===================== Tab整形・行操作・コメント切替 =====================
+function getLineRangeForSelection() {
+  const value = editor.value;
+  const start = editor.selectionStart;
+  const end = editor.selectionEnd;
+  const lineStart = value.lastIndexOf("\n", start - 1) + 1;
+  let lineEnd = value.indexOf("\n", end > start ? end - 1 : end);
+  if (lineEnd === -1) lineEnd = value.length;
+  return { lineStart, lineEnd };
+}
+
+function indentSelection(outdent) {
+  const value = editor.value;
+  const { lineStart, lineEnd } = getLineRangeForSelection();
+  const lines = value.slice(lineStart, lineEnd).split("\n");
+
+  const newLines = lines.map((line) => {
+    if (outdent) {
+      const m = line.match(/^(\t| {1,2})/);
+      return m ? line.slice(m[0].length) : line;
+    }
+    return "  " + line;
+  });
+
+  const newBlock = newLines.join("\n");
+  editor.setSelectionRange(lineStart, lineEnd);
+  insertTextAtCursor(newBlock);
+  editor.setSelectionRange(lineStart, lineStart + newBlock.length);
+}
+
+function handleTabKey(e) {
+  if (e.ctrlKey || e.metaKey) return;
+  e.preventDefault();
+  if (!e.shiftKey && editor.selectionStart === editor.selectionEnd) {
+    insertTextAtCursor("  ");
+    return;
+  }
+  indentSelection(e.shiftKey);
+}
+
+function duplicateLine() {
+  const value = editor.value;
+  const { lineStart, lineEnd } = getLineRangeForSelection();
+  const block = value.slice(lineStart, lineEnd);
+  editor.setSelectionRange(lineEnd, lineEnd);
+  insertTextAtCursor("\n" + block);
+  editor.setSelectionRange(lineEnd + 1, lineEnd + 1 + block.length);
+}
+
+function moveLines(dir) {
+  const value = editor.value;
+  const { lineStart, lineEnd } = getLineRangeForSelection();
+  const block = value.slice(lineStart, lineEnd);
+
+  if (dir < 0) {
+    if (lineStart === 0) return;
+    const prevLineStart = value.lastIndexOf("\n", lineStart - 2) + 1;
+    const prevLine = value.slice(prevLineStart, lineStart - 1);
+    editor.setSelectionRange(prevLineStart, lineEnd);
+    insertTextAtCursor(`${block}\n${prevLine}`);
+    editor.setSelectionRange(prevLineStart, prevLineStart + block.length);
+  } else {
+    if (lineEnd === value.length) return;
+    let nextLineEnd = value.indexOf("\n", lineEnd + 1);
+    if (nextLineEnd === -1) nextLineEnd = value.length;
+    const nextLine = value.slice(lineEnd + 1, nextLineEnd);
+    editor.setSelectionRange(lineStart, nextLineEnd);
+    insertTextAtCursor(`${nextLine}\n${block}`);
+    const newBlockStart = lineStart + nextLine.length + 1;
+    editor.setSelectionRange(newBlockStart, newBlockStart + block.length);
+  }
+}
+
+const LINE_COMMENT_TOKENS = { javascript: "//" };
+const BLOCK_COMMENT_TOKENS = {
+  css: ["/*", "*/"],
+  markup: ["<!--", "-->"],
+  markdown: ["<!--", "-->"],
+};
+
+function toggleLineComment(token) {
+  const value = editor.value;
+  const { lineStart, lineEnd } = getLineRangeForSelection();
+  const lines = value.slice(lineStart, lineEnd).split("\n");
+  const commentable = lines.filter((l) => l.trim() !== "");
+  const allCommented = commentable.length > 0 && commentable.every((l) => l.trim().startsWith(token));
+
+  const newLines = lines.map((line) => {
+    if (line.trim() === "") return line;
+    const indent = line.match(/^\s*/)[0];
+    if (allCommented) {
+      const rest = line.slice(indent.length);
+      const stripped = rest.startsWith(token + " ") ? rest.slice(token.length + 1) : rest.slice(token.length);
+      return indent + stripped;
+    }
+    return indent + token + " " + line.slice(indent.length);
+  });
+
+  const newBlock = newLines.join("\n");
+  editor.setSelectionRange(lineStart, lineEnd);
+  insertTextAtCursor(newBlock);
+  editor.setSelectionRange(lineStart, lineStart + newBlock.length);
+}
+
+function toggleBlockComment(openTok, closeTok) {
+  const value = editor.value;
+  let start = editor.selectionStart;
+  let end = editor.selectionEnd;
+  if (start === end) {
+    start = value.lastIndexOf("\n", start - 1) + 1;
+    end = value.indexOf("\n", end);
+    if (end === -1) end = value.length;
+  }
+  const selected = value.slice(start, end);
+  const trimmed = selected.trim();
+  editor.setSelectionRange(start, end);
+
+  if (trimmed.startsWith(openTok) && trimmed.endsWith(closeTok)) {
+    const inner = trimmed.slice(openTok.length, trimmed.length - closeTok.length).trim();
+    insertTextAtCursor(inner);
+    editor.setSelectionRange(start, start + inner.length);
+  } else {
+    const wrapped = `${openTok} ${selected} ${closeTok}`;
+    insertTextAtCursor(wrapped);
+    editor.setSelectionRange(start, start + wrapped.length);
+  }
+}
+
+function handleCommentToggle(e) {
+  const tab = getActiveTab();
+  const lang = detectLanguage(tab ? tab.name : "");
+  if (LINE_COMMENT_TOKENS[lang]) {
+    e.preventDefault();
+    toggleLineComment(LINE_COMMENT_TOKENS[lang]);
+  } else if (BLOCK_COMMENT_TOKENS[lang]) {
+    e.preventDefault();
+    toggleBlockComment(BLOCK_COMMENT_TOKENS[lang][0], BLOCK_COMMENT_TOKENS[lang][1]);
+  }
+}
+
+editor.addEventListener("keydown", (e) => {
+  if (e.isComposing || e.keyCode === 229) return;
+
+  if (e.key === "Tab") {
+    handleTabKey(e);
+  } else if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "/") {
+    handleCommentToggle(e);
+  } else if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "d") {
+    e.preventDefault();
+    duplicateLine();
+  } else if (e.altKey && !e.ctrlKey && !e.metaKey && e.key === "ArrowUp") {
+    e.preventDefault();
+    moveLines(-1);
+  } else if (e.altKey && !e.ctrlKey && !e.metaKey && e.key === "ArrowDown") {
+    e.preventDefault();
+    moveLines(1);
   }
 });
 
