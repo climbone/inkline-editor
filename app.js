@@ -171,11 +171,20 @@ async function init() {
   // 1. OSからのファイル受け取り(launchQueue)をアプリ起動時に最優先で登録
   if ("launchQueue" in window) {
     window.launchQueue.setConsumer(async (launchParams) => {
-      if (!launchParams.files || launchParams.files.length === 0) return;
-      // セッション復元中の場合は完了を待ってからファイルを開く
-      if (restorePromise) await restorePromise;
-      for (const handle of launchParams.files) {
-        await openFileHandleInNewTab(handle);
+      try {
+        if (!launchParams.files || launchParams.files.length === 0) {
+          console.warn("launchQueue: ファイルを受け取れませんでした", launchParams);
+          setStatus("開こうとしたファイルを受け取れませんでした。もう一度お試しください", true);
+          return;
+        }
+        // セッション復元中の場合は完了を待ってからファイルを開く
+        if (restorePromise) await restorePromise;
+        for (const handle of launchParams.files) {
+          await openFileHandleInNewTab(handle);
+        }
+      } catch (err) {
+        console.error("launchQueue consumer error", err);
+        setStatus("ファイルを開く処理中にエラーが発生しました", true);
       }
     });
   }
@@ -1036,6 +1045,11 @@ openBtn.addEventListener("click", async () => {
 
 async function openFileHandleInNewTab(handle) {
   try {
+    const granted = await verifyPermission(handle, "read");
+    if (!granted) {
+      setStatus(`「${handle.name}」の読み取り許可が得られませんでした`, true);
+      return;
+    }
     const file = await handle.getFile();
     const buffer = await file.arrayBuffer();
     const { text, encoding } = decodeBuffer(buffer);
